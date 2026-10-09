@@ -1,0 +1,106 @@
+@use '../styles/mixins' as *;
+
+$bp-sm: 40rem;
+$bp-lg: 64rem;
+$content-width: 72rem;
+
+/* Landing layout */
+
+.page {
+  @include stack(0);
+  min-height: 100svh;
+  background-color: var(--background);
+}
+
+.header {
+  border-bottom: 1px solid var(--border);
+}
+
+.headerInner {
+  margin-inline: auto;
+  display: flex;
+  height: 3.5rem;
+  max-width: $content-width;
+  align-items: center;
+  padding-inline: 1.5rem;
+}
+
+.brand {
+  font-size: 0.875rem;
+  font-weight: 500;
+}
+
+.main {
+  margin-inline: auto;
+  display: grid;
+  width: 100%;
+  max-width: $content-width;
+  flex: 1;
+  align-items: center;
+  gap: 3rem;
+  padding: 4rem 1.5rem;
+
+  @media (min-width: $bp-lg) {
+    grid-template-columns: 1fr minmax(0, 22rem);
+    gap: 5rem;
+  }
+}
+
+.hero {
+  @include stack(1.5rem);
+}
+
+.badge {
+  align-self: flex-start;
+  border-radius: 9999px;
+  font-weight: 400;
+}
+
+.headline {
+  font-size: 2.25rem;
+  line-height: 2.5rem;
+  font-weight: 800;
+  letter-spacing: -0.025em;
+  text-wrap: balance;
+
+  @media (min-width: $bp-sm) {
+    font-size: 3rem;
+    line-height: 1;
+  }
+}
+
+.description {
+  max-width: 28rem;
+  font-size: 1.125rem;
+  line-height: 1.75rem;
+  color: var(--muted-foreground);
+}
+
+.features {
+  display: grid;
+  gap: 1.5rem;
+  padding-top: 1rem;
+
+  @media (min-width: $bp-sm) {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+.feature {
+  @include stack(0.375rem);
+}
+
+.featureIcon {
+  width: 1.25rem;
+  height: 1.25rem;
+}
+
+.featureTitle {
+  font-size: 0.875rem;
+  font-weight: 500;
+}
+
+.featureDescription {
+  font-size: 0.875rem;
+  color: var(--muted-foreground);
+}

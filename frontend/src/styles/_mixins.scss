@@ -1,0 +1,11 @@
+@mixin stack($gap) {
+  display: flex;
+  flex-direction: column;
+  gap: $gap;
+}
+
+@mixin underline-link {
+  text-decoration: underline;
+  text-underline-offset: 4px;
+  color: var(--foreground);
+}

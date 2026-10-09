@@ -1,0 +1,73 @@
+@use '../styles/mixins' as *;
+
+.card {
+  width: 100%;
+  // Card's border is Tailwind's `ring-1`, which is itself a box-shadow, so it
+  // has to be repeated here or this shadow replaces it.
+  box-shadow:
+    0 0 0 1px color-mix(in oklab, var(--foreground) 10%, transparent),
+    0 1px 2px 0 rgb(0 0 0 / 0.05);
+}
+
+.title {
+  font-size: 1.125rem;
+}
+
+.form {
+  @include stack(1rem);
+}
+
+.field {
+  @include stack(0.5rem);
+}
+
+.labelRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.mutedLink {
+  font-size: 0.75rem;
+  color: var(--muted-foreground);
+  text-underline-offset: 4px;
+
+  &:hover {
+    text-decoration: underline;
+  }
+}
+
+.error {
+  font-size: 0.875rem;
+  color: var(--destructive);
+}
+
+.submit {
+  width: 100%;
+}
+
+.spinner {
+  animation: spin 1s linear infinite;
+}
+
+.footer {
+  @include stack(0.75rem);
+  align-items: flex-start;
+  font-size: 0.75rem;
+  color: var(--muted-foreground);
+}
+
+.link {
+  @include underline-link;
+}
+
+.strongLink {
+  @include underline-link;
+  font-weight: 500;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
