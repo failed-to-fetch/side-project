@@ -18,9 +18,9 @@ docker compose run --rm backend python -m pytest -q
 
 # Frontend (adjust the folder and scripts to match your project)
 cd frontend
-npm test
-npm run lint
-npm run build
+pnpm test
+pnpm run lint
+pnpm run build
 ```
 
 ## Checklist
@@ -37,8 +37,8 @@ npm run build
 - [ ] Error statuses are intentional (401, 403, 404, 409, 422)
 
 **Frontend changes** (delete if not applicable)
-- [ ] Frontend tests added or updated (unit/component tests for new logic, plus any end-to-end test for a changed user flow) and `npm test` passes
-- [ ] Lint, type check and production build pass (`npm run lint`, `npm run build`)
+- [ ] Frontend tests added or updated (unit/component tests for new logic, plus any end-to-end test for a changed user flow) and `pnpm test` passes
+- [ ] Lint, type check and production build pass (`pnpm run lint`, `pnpm run build`)
 - [ ] Requests to the API send credentials (`credentials: "include"` or `withCredentials: true`)
 - [ ] Loading, empty and error states are handled (including 401 redirecting to login, 409 on signup and 422 field errors)
 - [ ] Checked manually in the browser against the running backend (login, logout, reload while logged in)
