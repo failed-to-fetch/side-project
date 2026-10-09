@@ -1,25 +1,64 @@
-import { useState } from 'react'
+import { useCallback, useEffect, useState } from "react";
+import { authClient } from "@/lib/auth-client";
+import LoginPage from "./pages/login";
+import SuccessPage from "@/pages/success";
 
-import { signIn, type User } from '@/lib/auth'
-import type { SignInCredentials } from '@/components/sign-in-card'
-import LoginPage from '@/pages/login'
+type Session = {
+  user: {
+    email: string;
+    name: string;
+  };
+};
 
-function App() {
-  const [user, setUser] = useState<User | null>(null)
+export default function App() {
+  const [session, setSession] = useState<Session | null>(null);
+  const [loading, setLoading] = useState(true);
 
-  async function handleSignIn(credentials: SignInCredentials) {
-    setUser(await signIn(credentials))
+  const refreshSession = useCallback(async () => {
+    const { data, error } = await authClient.getSession();
+
+    if (error) {
+      console.error("Failed to get session:", error);
+      return false;
+    }
+
+    console.log("Session returned by Better Auth:", data);
+    setSession(data as Session | null);
+
+    return !!data?.user;
+  }, []);
+
+  useEffect(() => {
+    refreshSession().finally(() => setLoading(false));
+  }, [refreshSession]);
+
+  async function handleSignOut() {
+    const { error } = await authClient.signOut();
+
+    if (error) {
+      console.error("Sign-out failed:", error);
+      return;
+    }
+
+    setSession(null);
   }
 
-  if (user) {
+  if (loading) {
     return (
-      <div className="flex min-h-svh items-center justify-center">
-        <p className="text-sm">Signed in as {user.email}</p>
-      </div>
-    )
+      <main className="flex min-h-svh items-center justify-center">
+        Checking your session...
+      </main>
+    );
   }
 
-  return <LoginPage onSignIn={handleSignIn} />
-}
+  if (session?.user) {
+    return (
+      <SuccessPage
+        email={session.user.email}
+        onSignOut={handleSignOut}
+      />
+    );
+  }
 
-export default App
+  return <LoginPage onSignIn={refreshSession}/>;
+}

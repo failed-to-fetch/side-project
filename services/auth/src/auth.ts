@@ -1,0 +1,154 @@
+import { betterAuth } from "better-auth";
+import { Pool } from "pg";
+import { genericOAuth } from "better-auth/plugins";
+
+const requiredEnv = (name: string): string => {
+    const value = process.env[name];
+    if (!value) {
+        throw new Error(`Missing required environment variable: ${name}`);
+    }
+    return value;
+};
+
+const pool = new Pool({
+    connectionString: requiredEnv("DATABASE_URL"),
+});
+
+const gitlabClientId = process.env.GITLAB_LOGIN_CLIENT_ID;
+const gitlabClientSecret = process.env.GITLAB_LOGIN_CLIENT_SECRET;
+
+const bitbucketClientId = process.env.BITBUCKET_LOGIN_CLIENT_ID;
+const bitbucketClientSecret = process.env.BITBUCKET_LOGIN_CLIENT_SECRET;
+
+const genericProviders = [];
+
+if (gitlabClientId && gitlabClientSecret) {
+    genericProviders.push({
+        providerId: "gitlab",
+        clientId: gitlabClientId,
+        clientSecret: gitlabClientSecret,
+        authorizationUrl: "https://gitlab.com/oauth/authorize",
+        tokenUrl: "https://gitlab.com/oauth/token",
+        userInfoUrl: "https://gitlab.com/api/v4/user",
+        scopes: ["read_user"],
+        getUserInfo: async (tokens: { accessToken?: string }) => {
+            const accessToken = tokens.accessToken;
+
+            if (!accessToken) {
+                throw new Error("GitLab OAuth response did not include an access token");
+            }
+
+            const response = await fetch("https://gitlab.com/api/v4/user", {
+                headers: {
+                    Authorization: `Bearer ${accessToken}`,
+                },
+            });
+
+            if (!response.ok) {
+                throw new Error("Unable to retrieve GitLab profile");
+            }
+
+            const profile = await response.json();
+
+            return {
+                id: String(profile.id),
+                name: profile.name ?? profile.username,
+                email: profile.email ?? null,
+                image: profile.avatar_url ?? null,
+                emailVerified: false,
+            };
+        },
+    });
+}
+
+if (bitbucketClientId && bitbucketClientSecret) {
+    genericProviders.push({
+        providerId: "bitbucket",
+        clientId: bitbucketClientId,
+        clientSecret: bitbucketClientSecret,
+        authorizationUrl: "https://bitbucket.org/site/oauth2/authorize",
+        tokenUrl: "https://bitbucket.org/site/oauth2/access_token",
+        userInfoUrl: "https://api.bitbucket.org/2.0/user",
+        scopes: ["account:read", "email"],
+        getUserInfo: async (tokens: { accessToken?: string }) => {
+            const accessToken = tokens.accessToken;
+
+            if (!accessToken) {
+                throw new Error("Bitbucket OAuth response did not include an access token");
+            }
+
+            const headers = {
+                Authorization: `Bearer ${accessToken}`,
+            };
+
+            const [profileResponse, emailResponse] = await Promise.all([
+                fetch("https://api.bitbucket.org/2.0/user", { headers }),
+                fetch("https://api.bitbucket.org/2.0/user/emails", { headers }),
+            ]);
+
+            if (!profileResponse.ok) {
+                throw new Error("Unable to retrieve Bitbucket profile");
+            }
+
+            const profile = await profileResponse.json();
+
+            const emailData = emailResponse.ok
+                ? await emailResponse.json()
+                : { values: [] };
+
+            const primaryEmail = emailData.values?.find(
+                (entry: { is_primary?: boolean; is_confirmed?: boolean }) =>
+                    entry.is_primary && entry.is_confirmed
+            );
+
+            return {
+                id: String(profile.uuid),
+                name: profile.display_name,
+                email: primaryEmail?.email ?? null,
+                image: profile.links?.avatar?.href ?? null,
+                emailVerified: Boolean(primaryEmail),
+            };
+        },
+    });
+}
+
+export const auth = betterAuth({
+    baseURL: requiredEnv("BETTER_AUTH_URL"),
+    basePath: "/api/auth",
+    secret: requiredEnv("BETTER_AUTH_SECRET"),
+
+    database: pool,
+
+    trustedOrigins: [
+        "http://localhost:3000",
+        "http://127.0.0.1:3000",
+    ],
+
+    emailAndPassword: {
+        enabled: true,
+    },
+
+    socialProviders: {
+        github: {
+            clientId: requiredEnv("GITHUB_LOGIN_CLIENT_ID"),
+            clientSecret: requiredEnv("GITHUB_LOGIN_CLIENT_SECRET"),
+        },
+    },
+
+    account: {
+        accountLinking: {
+            enabled: true,
+            disableImplicitLinking: true,
+        },
+    },
+
+    plugins: [
+        ...(genericProviders.length > 0
+            ? [
+                genericOAuth({
+                    config: genericProviders,
+                }),
+            ]
+            : []),
+    ],
+});

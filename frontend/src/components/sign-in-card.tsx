@@ -1,7 +1,7 @@
-import {useActionState} from 'react';
-import {LoaderCircle} from 'lucide-react';
+import { useActionState } from 'react';
+import { LoaderCircle } from 'lucide-react';
 
-import {Button} from '../shadcn/components/ui/button';
+import { Button } from '../shadcn/components/ui/button';
 import {
   Card,
   CardContent,
@@ -10,8 +10,8 @@ import {
   CardHeader,
   CardTitle,
 } from '../shadcn/components/ui/card';
-import {Input} from '../shadcn/components/ui/input';
-import {Label} from '../shadcn/components/ui/label';
+import { Input } from '../shadcn/components/ui/input';
+import { Label } from '../shadcn/components/ui/label';
 
 import styles from './sign-in-card.module.scss';
 
@@ -22,6 +22,7 @@ export interface SignInCredentials {
 
 export interface SignInCardProps {
   onSignIn: (credentials: SignInCredentials) => Promise<void>;
+  onSignUp?: () => void;
   forgotPasswordHref?: string;
   signUpHref?: string;
   termsHref?: string;
@@ -31,6 +32,7 @@ export interface SignInCardProps {
 
 export function SignInCard({
   onSignIn,
+  onSignUp,
   forgotPasswordHref = '/forgot-password',
   signUpHref = '/sign-up',
   termsHref = '/terms',
@@ -107,21 +109,27 @@ export function SignInCard({
       <CardFooter className={styles.footer}>
         <p>
           Don&apos;t have an account?{' '}
-          <a href={signUpHref} className={styles.strongLink}>
-            Sign up
-          </a>
+          {onSignUp ? (
+            <button
+              type="button"
+              onClick={onSignUp}
+              className={styles.strongLink}
+            >
+              Sign up
+            </button>
+          ) : (
+            <a href={signUpHref} className={styles.strongLink}>
+              Sign up
+            </a>
+          )}
         </p>
-        <p>
-          By continuing you agree to the{' '}
-          <a href={termsHref} className={styles.link}>
-            Terms
-          </a>{' '}
-          and{' '}
-          <a href={privacyHref} className={styles.link}>
-            Privacy policy
-          </a>
-          .
-        </p>
+        <p> By continuing you agree to the{" "}
+          <button type="button" className={styles.link}
+            onClick={() => console.log("Terms clicked:", termsHref)} >
+            Terms </button>{" "} and{" "}
+          <button type="button" className={styles.link}
+            onClick={() => console.log("Privacy policy clicked:", privacyHref)}
+          > Privacy policy </button> . </p>
       </CardFooter>
     </Card>
   );
