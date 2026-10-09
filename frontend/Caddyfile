@@ -1,0 +1,31 @@
+{
+	# No need for the admin API inside the container
+	admin off
+}
+
+# Plain HTTP on :80 (disables automatic HTTPS; TLS is expected to be terminated upstream)
+:80 {
+	root * /srv
+	encode zstd gzip
+
+	# Hashed build assets can be cached forever
+	handle /assets/* {
+		header Cache-Control "public, max-age=31536000, immutable"
+		file_server
+	}
+
+	# Service worker and manifest must always be revalidated so PWA updates roll out
+	@pwa path /sw.js /workbox-*.js /manifest.webmanifest
+	handle @pwa {
+		header Cache-Control "no-cache"
+		header /manifest.webmanifest Content-Type application/manifest+json
+		file_server
+	}
+
+	# SPA fallback
+	handle {
+		header Cache-Control "no-cache"
+		try_files {path} /index.html
+		file_server
+	}
+}
