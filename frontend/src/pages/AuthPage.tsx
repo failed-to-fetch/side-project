@@ -4,7 +4,11 @@ import "./AuthPage.css";
 
 type Provider = "github" | "gitlab" | "bitbucket";
 
-export default function AuthPage() {
+type AuthPageProps = {
+    onSignedIn: () => Promise<void>;
+};
+
+export default function AuthPage({ onSignedIn }: AuthPageProps) {
     const [mode, setMode] = useState<"signin" | "signup">("signin");
     const [name, setName] = useState("");
     const [email, setEmail] = useState("");
@@ -52,12 +56,10 @@ export default function AuthPage() {
 
             if (result.error) {
                 setMessage(result.error.message || "Authentication failed.");
+            } else if (mode === "signin") {
+                await onSignedIn();
             } else {
-                setMessage(
-                    mode === "signup"
-                        ? "Account created successfully."
-                        : "Signed in successfully!"
-                );
+                setMessage("Account created successfully.");
             }
         } catch (error) {
             console.error("Email authentication failed:", error);

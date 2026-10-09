@@ -1,29 +1,76 @@
-// import { Button } from '@/components/ui/button'
-import AuthPage from "./components/AuthPage";
+import { useCallback, useEffect, useState } from "react";
+import { authClient } from "@/lib/auth-client";
+import AuthPage from "@/pages/AuthPage";
+import SuccessPage from "@/pages/success";
 
-import { useState } from 'react'
+type Session = {
+  user: {
+    email: string;
+    name: string;
+  };
+};
 
-import { signIn, type User } from '@/lib/auth'
-import type { SignInCredentials } from '@/components/sign-in-card'
-import LoginPage from '@/pages/login'
+export default function App() {
+  const [session, setSession] = useState<Session | null>(null);
+  const [loading, setLoading] = useState(true);
 
-function App() {
-  const [user, setUser] = useState<User | null>(null)
+  const refreshSession = useCallback(async () => {
+    const { data, error } = await authClient.getSession();
 
-  async function handleSignIn(credentials: SignInCredentials) {
-    setUser(await signIn(credentials))
+
+    if (error) {
+      console.error("Failed to get session:", error);
+      return false;
+    }
+
+    console.log("Session returned by Better Auth:", data);
+    setSession(data as Session | null);
+
+    return !!data?.user;
+  }, []);
+
+  useEffect(() => {
+    refreshSession().finally(() => setLoading(false));
+  }, [refreshSession]);
+
+  async function handleSignOut() {
+    const { error } = await authClient.signOut();
+
+    if (error) {
+      console.error("Sign-out failed:", error);
+      return;
+    }
+
+    setSession(null);
+
   }
 
-  if (user) {
-    return (
-      <AuthPage />
-      <div className="flex min-h-svh items-center justify-center">
-        <p className="text-sm">Signed in as {user.email}</p>
-      </div>
-    )
+  if (loading) {
+    return (<main className="flex min-h-svh items-center justify-center">
+      Checking your session... </main>
+    );
   }
 
-  return <LoginPage onSignIn={handleSignIn} />
+  if (session?.user) {
+    return (<SuccessPage
+      email={session.user.email}
+      onSignOut={handleSignOut}
+    />
+    );
+  }
+
+  return (
+    <AuthPage
+      onSignedIn={async () => {
+        const success = await refreshSession();
+
+        if (!success) {
+          console.error(
+            "Sign-in succeeded, but no session was returned. Check the auth cookie and browser Network tab."
+          );
+        }
+      }}
+    />
+
+  );
 }
-
-export default App
