@@ -1,11 +1,22 @@
-from fastapi import Depends, FastAPI, HTTPException, status
+import redis
+from fastapi import Cookie, Depends, FastAPI, HTTPException, Response, status
+from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
+from src.auth import get_current_user
 from src.database import get_db
 from src.models import User
-from src.schemas import UserCreate, UserRead
-from src.security import hash_password
+from src.redis_client import get_redis
+from src.schemas import LoginRequest, UserCreate, UserRead
+from src.security import DUMMY_HASH, hash_password, verify_password
+from src.sessions import (
+    COOKIE_NAME,
+    COOKIE_SECURE,
+    SESSION_TTL_SECONDS,
+    create_session,
+    delete_session,
+)
 
 app = FastAPI()
 
@@ -34,9 +45,55 @@ def create_user(payload: UserCreate, db: Session = Depends(get_db)) -> User:
     return user
 
 
-@app.get("/users/{user_id}", response_model=UserRead)
-def get_user(user_id: int, db: Session = Depends(get_db)) -> User:
-    user = db.get(User, user_id)
-    if user is None:
-        raise HTTPException(status_code=404, detail="User not found.")
+@app.post("/auth/login", response_model=UserRead)
+def login(
+    payload: LoginRequest,
+    response: Response,
+    db: Session = Depends(get_db),
+    r: redis.Redis = Depends(get_redis),
+) -> User:
+    user = db.scalar(
+        select(User).where(func.lower(User.email) == payload.email.strip().lower())
+    )
+    valid = verify_password(
+        payload.password, user.password_hash if user else DUMMY_HASH
+    )
+    if user is None or not valid:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid email or password.",
+        )
+
+    token = create_session(r, user.id)
+    response.set_cookie(
+        key=COOKIE_NAME,
+        value=token,
+        max_age=SESSION_TTL_SECONDS,
+        httponly=True,
+        samesite="lax",
+        secure=COOKIE_SECURE,
+    )
     return user
+
+
+@app.post("/auth/logout", status_code=status.HTTP_204_NO_CONTENT)
+def logout(
+    response: Response,
+    session_id: str | None = Cookie(default=None, alias=COOKIE_NAME),
+    r: redis.Redis = Depends(get_redis),
+) -> None:
+    if session_id:
+        delete_session(r, session_id)
+    response.delete_cookie(COOKIE_NAME)
+
+
+@app.get("/users/me", response_model=UserRead)
+def read_me(current_user: User = Depends(get_current_user)) -> User:
+    return current_user
+
+
+@app.get("/users/{user_id}", response_model=UserRead)
+def get_user(user_id: int, current_user: User = Depends(get_current_user)) -> User:
+    if user_id != current_user.id:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Forbidden.")
+    return current_user

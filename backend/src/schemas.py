@@ -15,3 +15,7 @@ class UserRead(BaseModel):
     email: EmailStr
     created_at: datetime
     updated_at: datetime
+
+class LoginRequest(BaseModel):
+    email: EmailStr
+    password: str = Field(min_length=1, max_length=128)
