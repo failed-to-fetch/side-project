@@ -1,19 +1,21 @@
 # Build stage
-FROM node:24-alpine AS build
+FROM node:26-alpine AS build
 WORKDIR /app
 
-RUN corepack enable && corepack prepare pnpm@12.10.1 --activate
+RUN npm install -g pnpm@12.10.1
 
 COPY package.json pnpm-lock.yaml ./
+
+# lock the pnpm-lock.yml so that all dependencies are installed exactly as specified in the lockfile
 RUN pnpm install --frozen-lockfile
 
+# copys /frontend
 COPY . .
 RUN pnpm build
 
 # Serve stage
-FROM nginx:1.27-alpine
-COPY nginx.conf /etc/nginx/conf.d/default.conf
-COPY --from=build /app/dist /usr/share/nginx/html
+FROM caddy:2.11-alpine
+COPY Caddyfile /etc/caddy/Caddyfile
+COPY --from=build /app/dist /srv
 
 EXPOSE 80
-CMD ["nginx", "-g", "daemon off;"]
