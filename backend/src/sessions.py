@@ -3,6 +3,7 @@ import os
 import secrets
 
 import redis
+from fastapi import Response
 
 COOKIE_NAME = "session_id"
 SESSION_TTL_SECONDS = 60 * 60 * 24 * 7  # 7 days
@@ -26,3 +27,13 @@ def get_session_user_id(r: redis.Redis, token: str) -> int | None:
 
 def delete_session(r: redis.Redis, token: str) -> None:
     r.delete(_key(token))
+
+def set_session_cookie(response: Response, token: str) -> None:
+    response.set_cookie(
+        key=COOKIE_NAME,
+        value=token,
+        max_age=SESSION_TTL_SECONDS,
+        httponly=True,
+        samesite="lax",
+        secure=COOKIE_SECURE,
+    )

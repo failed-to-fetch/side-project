@@ -1,5 +1,5 @@
 PASSWORD = "correct-horse-battery"
-
+from src.models import User
 
 def _signup(client, email="alice@example.com"):
     r = client.post("/users", json={"email": email, "password": PASSWORD})
@@ -54,3 +54,13 @@ def test_cannot_read_another_users_record(client):
     client.post("/auth/login", json={"email": "alice@example.com", "password": PASSWORD})
     assert client.get(f"/users/{alice['id']}").status_code == 200
     assert client.get(f"/users/{bob['id']}").status_code == 403
+
+
+def test_login_rejected_for_user_without_password(client, db):
+    db.add(User(email="gh-only@example.com", password_hash=None))
+    db.flush()
+    r = client.post(
+        "/auth/login",
+        json={"email": "gh-only@example.com", "password": "not-a-real-password"},
+    )
+    assert r.status_code == 401

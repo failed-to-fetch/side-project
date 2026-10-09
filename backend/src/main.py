@@ -19,6 +19,9 @@ from src.sessions import (
 )
 
 app = FastAPI()
+from src.routes_github_auth import router as github_auth_router
+
+app.include_router(github_auth_router)
 
 
 @app.get("/")
@@ -55,10 +58,9 @@ def login(
     user = db.scalar(
         select(User).where(func.lower(User.email) == payload.email.strip().lower())
     )
-    valid = verify_password(
-        payload.password, user.password_hash if user else DUMMY_HASH
-    )
-    if user is None or not valid:
+    stored_hash = user.password_hash if user and user.password_hash else DUMMY_HASH
+    valid = verify_password(payload.password, stored_hash)
+    if user is None or not user.password_hash or not valid:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid email or password.",

@@ -8,3 +8,6 @@ pydantic[email]
 pwdlib[argon2]
 pytest
 httpx
+cryptography
+authlib
+PyJWT[crypto]
