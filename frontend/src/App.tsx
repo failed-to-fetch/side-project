@@ -1,10 +1,9 @@
-import { Button } from '@/components/ui/button'
+// import { Button } from '@/components/ui/button'
+import AuthPage from "./components/AuthPage";
 
 function App() {
   return (
-    <div className="flex min-h-svh items-center justify-center">
-      <Button>Hello shadcn</Button>
-    </div>
+    <AuthPage />
   )
 }
 
