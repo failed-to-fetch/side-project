@@ -1,7 +1,15 @@
-import {GitCommitHorizontal, Package, Users, type LucideIcon} from 'lucide-react';
+import { useState } from 'react';
+import {
+  GitCommitHorizontal,
+  Package,
+  Users,
+  type LucideIcon,
+} from 'lucide-react';
 
-import {SignInCard, type SignInCredentials} from '../components/sign-in-card';
-import {Badge} from '../shadcn/components/ui/badge';
+import { authClient } from '../lib/auth-client';
+import { SignInCard } from '../components/sign-in-card';
+import { SignUpCard, type SignUpCredentials } from '../components/sign-up-card';
+import { Badge } from '../shadcn/components/ui/badge';
 
 import styles from './login.module.scss';
 
@@ -11,30 +19,101 @@ export interface Feature {
   description: string;
 }
 
+// type Provider = 'github' | 'gitlab' | 'bitbucket';
+type AuthMode = 'signin' | 'signup';
+
 export interface LoginPageProps {
-  onSignIn: (credentials: SignInCredentials) => Promise<void>;
+  onSignIn: () => Promise<boolean>;
   productName?: string;
   description?: string;
   features?: readonly Feature[];
 }
 
 const defaultFeatures: readonly Feature[] = [
-  {icon: GitCommitHorizontal, title: 'History snapshots', description: 'Daily, weekly or per release.'},
-  {icon: Package, title: 'Dependency changes', description: 'When each package came and went.'},
-  {icon: Users, title: 'Owners', description: 'Who knows which part of the code.'},
+  {
+    icon: GitCommitHorizontal,
+    title: 'History snapshots',
+    description: 'Daily, weekly or per release.',
+  },
+  {
+    icon: Package,
+    title: 'Dependency changes',
+    description: 'When each package came and went.',
+  },
+  {
+    icon: Users,
+    title: 'Owners',
+    description: 'Who knows which part of the code.',
+  },
 ];
 
 export default function LoginPage({
   onSignIn,
-  productName = '[Product]',
-  description = 'Point it at a repository. Get snapshots of files, dependencies and ownership across its whole history.',
+  productName = 'SideProject',
+  description =
+  'Point it at a repository. Get snapshots of files, dependencies and ownership across its whole history.',
   features = defaultFeatures,
 }: LoginPageProps) {
+  const [mode, setMode] = useState<AuthMode>('signin');
+  const [loginActive, setLoginActive] = useState(false);
+
+  async function handleSignIn({
+    email,
+    password,
+  }: {
+    email: string;
+    password: string;
+  }) {
+    const result = await authClient.signIn.email({
+      email,
+      password,
+    });
+
+    if (result.error) {
+      throw new Error(result.error.message || 'Authentication failed.');
+    }
+
+    const success = await onSignIn();
+
+    if (!success) {
+      throw new Error(
+        'Sign-in succeeded, but no session was found. Check your authentication configuration.',
+      );
+    }
+  }
+
+
+  async function handleSignUp({
+    name,
+    email,
+    password,
+  }: SignUpCredentials): Promise<void> {
+    const result = await authClient.signUp.email({
+      name,
+      email,
+      password,
+    });
+
+    if (result.error) {
+      throw new Error(result.error.message || 'Account creation failed.');
+    }
+
+    setLoginActive(true);
+    setMode('signin');
+  }
+
+  function changeMode(nextMode: AuthMode) {
+    setMode(nextMode);
+  }
+
   return (
     <div className={styles.page}>
       <header className={styles.header}>
         <div className={styles.headerInner}>
-          <span className={styles.brand}>{productName}</span>
+          <a className={styles.brand} href="/">
+            {productName}
+          </a>
+          <span>Developer workspace</span>
         </div>
       </header>
 
@@ -44,23 +123,59 @@ export default function LoginPage({
             Git history analysis
           </Badge>
 
-          <h1 className={styles.headline}>See how a codebase grew, commit by commit.</h1>
+          <h1 className={styles.headline}>
+            Your projects.
+            <br />
+            <span>Your workflow.</span>
+          </h1>
 
           <p className={styles.description}>{description}</p>
 
           <ul className={styles.features}>
-            {features.map(({icon: Icon, title, description}) => (
+            {features.map(({ icon: Icon, title, description }) => (
               <li key={title} className={styles.feature}>
-                <Icon className={styles.featureIcon} aria-hidden />
-                <p className={styles.featureTitle}>{title}</p>
-                <p className={styles.featureDescription}>{description}</p>
+                <Icon className={styles.featureIcon} aria-hidden="true" />
+
+                <div>
+                  <p className={styles.featureTitle}>{title}</p>
+                  <p className={styles.featureDescription}>
+                    {description}
+                  </p>
+                </div>
               </li>
             ))}
           </ul>
         </section>
 
-        <SignInCard onSignIn={onSignIn} />
+        <section
+          className={styles.authCard}
+          aria-labelledby="auth-title"
+        >
+
+          {(mode === 'signin' || loginActive) ? (
+            <SignInCard
+              onSignIn={handleSignIn}
+              onSignUp={() => changeMode('signup')}
+              termsHref="/terms"
+              privacyHref="/privacy"
+            />
+          ) : (
+            <SignUpCard
+              onSignUp={handleSignUp}
+              onSignIn={() => changeMode('signin')}
+              termsHref="/terms"
+              privacyHref="/privacy"
+            />
+          )}
+        </section>
       </main>
+
+      <footer className={styles.footer}>
+        <span>
+          © {new Date().getFullYear()} {productName}
+        </span>
+        <span>Made for people who build.</span>
+      </footer>
     </div>
   );
 }

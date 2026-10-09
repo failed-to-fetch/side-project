@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { authClient } from "@/lib/auth-client";
-import AuthPage from "@/pages/AuthPage";
+import LoginPage from "./pages/login";
 import SuccessPage from "@/pages/success";
 
 type Session = {
@@ -16,7 +16,6 @@ export default function App() {
 
   const refreshSession = useCallback(async () => {
     const { data, error } = await authClient.getSession();
-
 
     if (error) {
       console.error("Failed to get session:", error);
@@ -42,35 +41,24 @@ export default function App() {
     }
 
     setSession(null);
-
   }
 
   if (loading) {
-    return (<main className="flex min-h-svh items-center justify-center">
-      Checking your session... </main>
+    return (
+      <main className="flex min-h-svh items-center justify-center">
+        Checking your session...
+      </main>
     );
   }
 
   if (session?.user) {
-    return (<SuccessPage
-      email={session.user.email}
-      onSignOut={handleSignOut}
-    />
+    return (
+      <SuccessPage
+        email={session.user.email}
+        onSignOut={handleSignOut}
+      />
     );
   }
 
-  return (
-    <AuthPage
-      onSignedIn={async () => {
-        const success = await refreshSession();
-
-        if (!success) {
-          console.error(
-            "Sign-in succeeded, but no session was returned. Check the auth cookie and browser Network tab."
-          );
-        }
-      }}
-    />
-
-  );
+  return <LoginPage onSignIn={refreshSession}/>;
 }
