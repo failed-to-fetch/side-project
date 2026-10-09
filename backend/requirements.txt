@@ -1,4 +1,13 @@
 fastapi
+SQLAlchemy
+alembic>=1.13,<2.0
 psycopg[binary]
 redis
 uvicorn[standard]
+pydantic[email]
+pwdlib[argon2]
+pytest
+httpx
+cryptography
+authlib
+PyJWT[crypto]
