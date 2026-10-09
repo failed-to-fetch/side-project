@@ -4,16 +4,43 @@ services:
     build:
       context: ./backend
     container_name: backend
+    command: uvicorn src.main:app --host 0.0.0.0 --port 8000 --reload
     ports:
       - "8000:8000"
+    volumes:
+      - ./backend:/app
     environment:
       DATABASE_URL: postgresql://app:password@postgres:5432/appdb
       REDIS_URL: redis://redis:6379
+      WATCHFILES_FORCE_POLLING: "true"
+      TOKEN_ENCRYPTION_KEY: ${TOKEN_ENCRYPTION_KEY}
+      GITHUB_CLIENT_ID: ${GITHUB_CLIENT_ID}
+      GITHUB_CLIENT_SECRET: ${GITHUB_CLIENT_SECRET}
+      GITHUB_REDIRECT_URI: http://localhost:8000/auth/github/callback
+      FRONTEND_URL: http://localhost:3000
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U app -d appdb"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
     depends_on:
       postgres:
         condition: service_healthy
       redis:
         condition: service_healthy
+    networks:
+      - app-network
+  
+  frontend:
+    build:
+      context: ./frontend
+    container_name: frontend
+    ports:
+      - "3000:80"
+    environment:
+      BACKEND_URL: http://localhost:8000
+    depends_on:
+      - backend
     networks:
       - app-network
 
