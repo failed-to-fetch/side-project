@@ -1,21 +1,24 @@
 import uuid
 
-from src.database import SessionLocal
-from src.models import User
+from app.core.db import get_sessionmaker
+from app.features.integrations.models import ProviderConnection
 
 
 def test_updated_at_changes_on_update():
-    email = f"{uuid.uuid4()}@example.com"
-    with SessionLocal() as db:
-        user = User(email=email, password_hash="x")
-        db.add(user)
+    with get_sessionmaker()() as db:
+        conn = ProviderConnection(
+            user_id=f"test-{uuid.uuid4()}",
+            provider="github",
+            provider_user_id=uuid.uuid4().hex[:32],
+        )
+        db.add(conn)
         try:
             db.commit()
-            created = user.updated_at
-            user.password_hash = "y"
+            created = conn.updated_at
+            conn.provider_login = "renamed"
             db.commit()
-            db.refresh(user)
-            assert user.updated_at > created
+            db.refresh(conn)
+            assert conn.updated_at > created
         finally:
-            db.delete(user)
+            db.delete(conn)
             db.commit()

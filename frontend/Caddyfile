@@ -3,10 +3,22 @@
 	admin off
 }
 
-# Plain HTTP on :80 (disables automatic HTTPS; TLS is expected to be terminated upstream)
-:80 {
+# SITE_ADDRESS (from compose) decides how Caddy serves:
+#   :80 (default)              plain HTTP, for local development
+#   79-72-88-229.sslip.io      a hostname: automatic HTTPS with a Let's Encrypt
+#                              certificate, and HTTP redirected to HTTPS
+{$SITE_ADDRESS::80} {
 	root * /srv
 	encode zstd gzip
+
+	# One origin for the browser: API calls are forwarded to the other containers,
+	# so there's no CORS and cookies are first-party. The more specific path wins.
+	handle /api/auth/* {
+		reverse_proxy auth:3001
+	}
+	handle /api/* {
+		reverse_proxy backend:8000
+	}
 
 	# Hashed build assets can be cached forever
 	handle /assets/* {

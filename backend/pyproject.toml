@@ -1,25 +1,48 @@
 [project]
 name = "backend"
 version = "0.1.0"
-description = "Python backend"
+description = "Repository analysis backend (FastAPI)"
 readme = "README.md"
 requires-python = ">=3.12"
+# No [build-system]: uv treats this as an app, installs only the dependencies,
+# and never builds the project itself (so no egg-info or build/ directories).
 dependencies = [
-    "fastapi",
-    "uvicorn[standard]",
-    "pydantic-settings",
+    "fastapi>=0.143",
+    "uvicorn[standard]>=0.54",
+    "sqlalchemy>=2.1",
+    "alembic>=1.20,<2",
+    "psycopg[binary]>=3.3",
+    "redis>=8.1",
+    "pydantic>=2.14",
+    "pydantic-settings>=2.15",
+    "cryptography>=50",
+    "httpx>=0.28",
 ]
 
-[project.optional-dependencies]
+[dependency-groups]
 dev = [
-    "pytest",
-    "httpx",
-    "ruff",
+    "pytest>=9.1",
+    "ruff>=0.14",
 ]
 
 [tool.ruff]
 line-length = 88
 target-version = "py312"
+# alembic/versions is generated; build/ and src/ are leftovers from the old setuptools layout.
+# Listed explicitly because ruff can't see .gitignore inside the container.
+extend-exclude = ["alembic/versions", "build", "src"]
+
+[tool.ruff.lint]
+# pycodestyle, pyflakes, import order, bugbear, pyupgrade
+select = ["E", "F", "I", "B", "UP"]
+ignore = ["E501"]  # the formatter handles line length
+
+[tool.ruff.lint.isort]
+known-first-party = ["app"]
+known-third-party = ["alembic"]  # not our alembic/ migrations folder
+
+[tool.ruff.lint.flake8-bugbear]
+extend-immutable-calls = ["fastapi.Depends", "fastapi.Cookie", "fastapi.Query"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

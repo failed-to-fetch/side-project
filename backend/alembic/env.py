@@ -1,14 +1,17 @@
 import os
+from logging.config import fileConfig
 
 from alembic import context
 from sqlalchemy import create_engine, pool
 
-from src.database import Base
-from src.models import User
+import app.models  # noqa: F401  (registers every model on Base.metadata)
+from app.core.db import Base
 
 target_metadata = Base.metadata
 
 config = context.config
+if config.config_file_name is not None:
+    fileConfig(config.config_file_name)  # logging setup from alembic.ini
 
 database_url = os.environ.get("DATABASE_URL")
 if not database_url:
@@ -20,10 +23,20 @@ config.set_main_option(
 )
 
 
+def include_name(name, type_, parent_names):
+    # The database is shared with Better Auth (user, session, account, ...).
+    # Only compare tables we have models for, or autogenerate will try to drop theirs.
+    # Trade-off: deleting a model won't autogenerate a DROP TABLE; write that by hand.
+    if type_ == "table":
+        return name in target_metadata.tables
+    return True
+
+
 def run_migrations_offline():
     context.configure(
         url=database_url,
         target_metadata=target_metadata,
+        include_name=include_name,
         literal_binds=True,
         dialect_opts={"paramstyle": "named"},
         compare_type=True,
@@ -43,6 +56,7 @@ def run_migrations_online():
         context.configure(
             connection=connection,
             target_metadata=target_metadata,
+            include_name=include_name,
             compare_type=True,
         )
 

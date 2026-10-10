@@ -1,46 +1,83 @@
+x-backend-image: &backend-image
+  build:
+    context: ./backend
+    target: dev
+  volumes:
+    - ./backend:/app
+
+x-database-url: &database-url postgresql://${POSTGRES_USER:-app}:${POSTGRES_PASSWORD:-password}@postgres:5432/${POSTGRES_DB:-appdb}
+
+# The address users open in the browser. Everything public is served from here.
+x-public-url: &public-url ${PUBLIC_URL:-http://localhost:3000}
+
+# Only the frontend (Caddy) is reachable from other machines. The rest are bound
+# to 127.0.0.1 so you can debug them locally without exposing them on a server.
+
 services:
 
-  backend:
-    build:
-      context: ./backend
-    container_name: backend
-    command: uvicorn src.main:app --host 0.0.0.0 --port 8000 --reload
-    ports:
-      - "8000:8000"
-    volumes:
-      - ./backend:/app
+  backend-migrate:
+    <<: *backend-image
+    command: ["alembic", "upgrade", "head"]
+    restart: "no"
     environment:
-      DATABASE_URL: postgresql://app:password@postgres:5432/appdb
+      DATABASE_URL: *database-url
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - app-network
+
+  backend:
+    <<: *backend-image
+    container_name: backend
+    ports:
+      - "127.0.0.1:8000:8000"
+    environment:
+      DATABASE_URL: *database-url
       REDIS_URL: redis://redis:6379
       WATCHFILES_FORCE_POLLING: "true"
       TOKEN_ENCRYPTION_KEY: ${TOKEN_ENCRYPTION_KEY}
       GITHUB_CLIENT_ID: ${GITHUB_CLIENT_ID}
       GITHUB_CLIENT_SECRET: ${GITHUB_CLIENT_SECRET}
-      GITHUB_REDIRECT_URI: http://localhost:8000/auth/github/callback
-      FRONTEND_URL: http://localhost:3000
+      GITHUB_REDIRECT_URI: ${PUBLIC_URL:-http://localhost:3000}/api/integrations/github/callback
+      FRONTEND_URL: *public-url
+      COOKIE_SECURE: ${COOKIE_SECURE:-false}
+      AUTH_SERVICE_URL: http://auth:3001
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U app -d appdb"]
-      interval: 5s
+      # The python image has no curl or pg_isready, so probe the API with the stdlib.
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/health', timeout=3)"]
+      interval: 10s
       timeout: 5s
       retries: 5
     depends_on:
-      postgres:
-        condition: service_healthy
+      backend-migrate:
+        condition: service_completed_successfully
       redis:
+        condition: service_healthy
+      auth:
         condition: service_healthy
     networks:
       - app-network
-  
+
   frontend:
     build:
       context: ./frontend
     container_name: frontend
-    ports:
-      - "3000:80"
     environment:
-      BACKEND_URL: http://localhost:8000
+      # :80 = plain HTTP. A hostname (e.g. 79-72-88-229.sslip.io) = automatic HTTPS.
+      SITE_ADDRESS: ${SITE_ADDRESS:-:80}
+    ports:
+      - "${FRONTEND_PORT:-3000}:80"
+      - "${HTTPS_PORT:-3443}:443"
+    volumes:
+      # Certificates and keys; kept so restarts don't request new ones.
+      - caddy-data:/data
+      - caddy-config:/config
     depends_on:
-      - backend
+      backend:
+        condition: service_healthy
+      auth:
+        condition: service_healthy
     networks:
       - app-network
 
@@ -49,15 +86,15 @@ services:
       context: ./services/postgres
     container_name: postgres
     environment:
-      POSTGRES_USER: app
-      POSTGRES_PASSWORD: password
-      POSTGRES_DB: appdb
+      POSTGRES_USER: ${POSTGRES_USER:-app}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-password}
+      POSTGRES_DB: ${POSTGRES_DB:-appdb}
     ports:
-      - "5432:5432"
+      - "127.0.0.1:5432:5432"
     volumes:
       - postgres-data:/var/lib/postgresql
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U app -d appdb"]
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
       interval: 5s
       timeout: 5s
       retries: 5
@@ -69,7 +106,7 @@ services:
       context: ./services/redis
     container_name: redis
     ports:
-      - "6379:6379"
+      - "127.0.0.1:6379:6379"
     volumes:
       - redis-data:/data
     healthcheck:
@@ -83,18 +120,18 @@ services:
   auth-migrate:
     build:
       context: ./services/auth
-    environment:
-      DATABASE_URL: postgresql://app:password@postgres:5432/appdb
-      BETTER_AUTH_URL: http://localhost:3001
+      target: migrate
+    environment: &auth-env
+      DATABASE_URL: *database-url
+      BETTER_AUTH_URL: *public-url
+      TRUSTED_ORIGINS: ${TRUSTED_ORIGINS:-http://localhost:5173}
       BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET}
-      FRONTEND_URL: http://localhost:3000
       GITHUB_LOGIN_CLIENT_ID: ${GITHUB_LOGIN_CLIENT_ID}
       GITHUB_LOGIN_CLIENT_SECRET: ${GITHUB_LOGIN_CLIENT_SECRET}
       GITLAB_LOGIN_CLIENT_ID: ${GITLAB_LOGIN_CLIENT_ID}
       GITLAB_LOGIN_CLIENT_SECRET: ${GITLAB_LOGIN_CLIENT_SECRET}
       BITBUCKET_LOGIN_CLIENT_ID: ${BITBUCKET_LOGIN_CLIENT_ID}
       BITBUCKET_LOGIN_CLIENT_SECRET: ${BITBUCKET_LOGIN_CLIENT_SECRET}
-    command: ["pnpm", "run", "auth:migrate:docker"]
     restart: "no"
     depends_on:
       postgres:
@@ -105,21 +142,19 @@ services:
   auth:
     build:
       context: ./services/auth
+      target: prod
     container_name: auth
     ports:
-      - "3001:3001"
+      - "127.0.0.1:3001:3001"
     environment:
+      <<: *auth-env
       PORT: 3001
-      DATABASE_URL: postgresql://app:password@postgres:5432/appdb
-      BETTER_AUTH_URL: http://localhost:3001
-      BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET}
-      FRONTEND_URL: http://localhost:3000
-      GITHUB_LOGIN_CLIENT_ID: ${GITHUB_LOGIN_CLIENT_ID}
-      GITHUB_LOGIN_CLIENT_SECRET: ${GITHUB_LOGIN_CLIENT_SECRET}
-      GITLAB_LOGIN_CLIENT_ID: ${GITLAB_LOGIN_CLIENT_ID}
-      GITLAB_LOGIN_CLIENT_SECRET: ${GITLAB_LOGIN_CLIENT_SECRET}
-      BITBUCKET_LOGIN_CLIENT_ID: ${BITBUCKET_LOGIN_CLIENT_ID}
-      BITBUCKET_LOGIN_CLIENT_SECRET: ${BITBUCKET_LOGIN_CLIENT_SECRET}
+    healthcheck:
+      # 127.0.0.1, not localhost: Alpine resolves localhost to IPv6 first, and the server listens on IPv4.
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:3001/api/auth/ok"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
     depends_on:
       postgres:
         condition: service_healthy
@@ -131,6 +166,8 @@ services:
 volumes:
   postgres-data:
   redis-data:
+  caddy-data:
+  caddy-config:
 
 networks:
   app-network:

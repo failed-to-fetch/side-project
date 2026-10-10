@@ -10,6 +10,31 @@ const requiredEnv = (name: string): string => {
     return value;
 };
 
+// The public address (PUBLIC_URL in compose). It must be a bare origin: if it has
+// a path, Better Auth uses that path as its route prefix and every /api/auth/*
+// request returns 404.
+const publicOrigin = (() => {
+    const raw = requiredEnv("BETTER_AUTH_URL");
+    let url: URL;
+    try {
+        url = new URL(raw);
+    } catch {
+        url = new URL("invalid:");
+    }
+    if (url.protocol !== "http:" && url.protocol !== "https:") {
+        throw new Error(
+            `BETTER_AUTH_URL (PUBLIC_URL) must start with http:// or https://, got "${raw}"`
+        );
+    }
+    if (url.pathname !== "/" || url.search || url.hash) {
+        throw new Error(
+            `BETTER_AUTH_URL (PUBLIC_URL) must be just scheme://host[:port] with no path, ` +
+                `e.g. http://203.0.113.10:3000. Got "${raw}".`
+        );
+    }
+    return url.origin;
+})();
+
 const pool = new Pool({
     connectionString: requiredEnv("DATABASE_URL"),
 });
@@ -113,16 +138,18 @@ if (bitbucketClientId && bitbucketClientSecret) {
 }
 
 export const auth = betterAuth({
-    baseURL: requiredEnv("BETTER_AUTH_URL"),
+    baseURL: publicOrigin,
     basePath: "/api/auth",
     secret: requiredEnv("BETTER_AUTH_SECRET"),
 
     database: pool,
 
-    trustedOrigins: [
-        "http://localhost:3000",
-        "http://127.0.0.1:3000",
-    ],
+    // baseURL's origin is trusted automatically. Extra origins (e.g. the Vite dev
+    // server) come from TRUSTED_ORIGINS, comma-separated.
+    trustedOrigins: (process.env.TRUSTED_ORIGINS ?? "")
+        .split(",")
+        .map((origin) => origin.trim())
+        .filter(Boolean),
 
     emailAndPassword: {
         enabled: true,
