@@ -384,6 +384,17 @@ Open the job → **Build with Parameters** and set `DEPLOY_REF` to a branch name
 docker compose run --rm backend alembic downgrade <Main's head revision>
 ```
 
+### Disk usage
+
+Builds clean up after themselves:
+- the *Build images* stage removes its image tags
+- `deploy.sh` removes images replaced by a deploy
+- both drop Docker build cache unused for 7 days
+
+Jenkins keeps the last 30 builds per branch or pull request. In the job's configuration, set **Orphaned Item Strategy → Discard old items** (e.g. 7 days), so jobs for merged pull requests and deleted branches are removed too.
+
+To check on the server: `docker system df` shows images, containers, volumes and build cache; `df -h /` shows free space. To reclaim space at once, `docker builder prune -f` empties the build cache, and the next build is slower.
+
 ### Rolling back
 
 On the server, deploy any earlier commit:

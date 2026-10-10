@@ -55,12 +55,15 @@ pipeline {
                 '''
             }
             post {
-                // Drop the tags; the layers stay cached for the next build.
+                // Drop the tags (shared layers stay for the next build), and build
+                // cache unused for a week, so PR builds can't fill the disk even
+                // when nothing is deployed.
                 always {
                     sh '''
                         for s in backend auth frontend; do
                             docker image rm "side-project-ci-$s:$GIT_COMMIT" >/dev/null 2>&1 || true
                         done
+                        docker builder prune -f --filter until=168h >/dev/null 2>&1 || true
                     '''
                 }
             }

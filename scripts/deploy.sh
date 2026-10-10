@@ -64,8 +64,10 @@ main() {
 
   docker compose up -d --build --remove-orphans --wait --wait-timeout 300
 
-  # Drop superseded image layers so the disk doesn't fill up over many deploys.
+  # Keep the disk from filling up over many deploys: drop superseded images, and
+  # build cache unused for a week (recent cache stays, so builds stay fast).
   docker image prune -f >/dev/null
+  docker builder prune -f --filter until=168h >/dev/null
 
   echo "Deployed $(git rev-parse --short HEAD)."
 }
