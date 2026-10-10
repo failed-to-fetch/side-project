@@ -351,12 +351,12 @@ Every pull request gets two checks:
 | Check | From | Proves |
 |---|---|---|
 | `Backend tests` | GitHub Actions (`.github/workflows/backend.yml`) | backend lint, migrations, tests |
-| `continuous-integration/jenkins/branch` | Jenkins (*Build images* stage) | all three production images build, including the frontend's TypeScript compile |
+| `continuous-integration/jenkins/pr-head` | Jenkins (*Build images* stage, on the pull request build) | all three production images build, including the frontend's TypeScript compile |
 
 To require them: GitHub repo → **Settings → Branches → Add classic branch protection rule**:
 - **Branch name pattern:** `Main`
 - ✓ **Require a pull request before merging**
-- ✓ **Require status checks to pass before merging**, then search for and add **`Backend tests`** and **`continuous-integration/jenkins/branch`**. A check only appears in the search after it has run at least once in the past week, so push a branch first.
+- ✓ **Require status checks to pass before merging**, then search for and add **`Backend tests`** and **`continuous-integration/jenkins/pr-head`**. A check only appears in the search after it has run at least once in the past week, so open a pull request first. Don't pick `continuous-integration/jenkins/branch`: that's the status for branch builds, and once a branch has a pull request Jenkins builds it as the pull request instead, so a required `…/branch` check would wait forever.
 - ✓ **Require branches to be up to date before merging** (optional: re-runs the checks against the latest `Main`)
 - ✓ **Do not allow bypassing the above settings**, so it applies to admins too
 - **Create**
