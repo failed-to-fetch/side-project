@@ -6,13 +6,13 @@ Tests for the FastAPI backend. They run inside Docker against the real Postgres 
 
 - Docker with Compose v2 (`docker compose`, not the older `docker-compose`). Docker Desktop on Windows/macOS, or Docker Engine plus the Compose plugin on Linux
 - Commands are run from the project root in PowerShell or sh/zsh
-- The backend image has been built with the test dependencies (`pytest`, `httpx`) in `backend/requirements.txt`:
+- The backend image has been built. Compose builds the `dev` target, which includes the `dev` dependency group (`pytest`, `ruff`) from `backend/pyproject.toml`:
 
 ```powershell
 docker compose build backend
 ```
 
-Rebuild again whenever `requirements.txt` changes. Code and test changes do not need a rebuild, because `./backend` is bind-mounted into the container at `/app`.
+Rebuild again whenever `pyproject.toml` or `uv.lock` changes. Code and test changes do not need a rebuild, because `./backend` is bind-mounted into the container at `/app`.
 
 ## Run the tests
 

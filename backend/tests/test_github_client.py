@@ -15,7 +15,9 @@ def _client(handler) -> GitHubClient:
 
 
 def test_authorize_url_includes_pkce_and_state():
-    url = GitHubClient("cid", "secret", "http://test/callback").authorize_url("st", "chal")
+    url = GitHubClient("cid", "secret", "http://test/callback").authorize_url(
+        "st", "chal"
+    )
     qs = parse_qs(urlparse(url).query)
     assert qs == {
         "client_id": ["cid"],
@@ -32,7 +34,12 @@ def test_exchange_code_returns_tokens_with_expiry():
         assert body["code"] == ["the-code"] and body["code_verifier"] == ["ver"]
         assert body["client_secret"] == ["secret"]
         return httpx.Response(
-            200, json={"access_token": "ghu_x", "refresh_token": "ghr_x", "expires_in": 28800}
+            200,
+            json={
+                "access_token": "ghu_x",
+                "refresh_token": "ghr_x",
+                "expires_in": 28800,
+            },
         )
 
     tokens = _client(handler).exchange_code("the-code", "ver")
@@ -44,7 +51,8 @@ def test_exchange_code_raises_on_error_in_200_response():
     # GitHub reports a bad code as HTTP 200 with an "error" field.
     def handler(request):
         return httpx.Response(
-            200, json={"error": "bad_verification_code", "error_description": "bad code"}
+            200,
+            json={"error": "bad_verification_code", "error_description": "bad code"},
         )
 
     with pytest.raises(GitHubError, match="bad code"):

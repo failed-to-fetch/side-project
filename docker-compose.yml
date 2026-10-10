@@ -1,16 +1,33 @@
+x-backend-image: &backend-image
+  build:
+    context: ./backend
+    target: dev
+  volumes:
+    - ./backend:/app
+
+x-database-url: &database-url postgresql://${POSTGRES_USER:-app}:${POSTGRES_PASSWORD:-password}@postgres:5432/${POSTGRES_DB:-appdb}
+
 services:
 
+  backend-migrate:
+    <<: *backend-image
+    command: ["alembic", "upgrade", "head"]
+    restart: "no"
+    environment:
+      DATABASE_URL: *database-url
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - app-network
+
   backend:
-    build:
-      context: ./backend
+    <<: *backend-image
     container_name: backend
-    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
     ports:
       - "8000:8000"
-    volumes:
-      - ./backend:/app
     environment:
-      DATABASE_URL: postgresql://${POSTGRES_USER:-app}:${POSTGRES_PASSWORD:-password}@postgres:5432/${POSTGRES_DB:-appdb}
+      DATABASE_URL: *database-url
       REDIS_URL: redis://redis:6379
       WATCHFILES_FORCE_POLLING: "true"
       TOKEN_ENCRYPTION_KEY: ${TOKEN_ENCRYPTION_KEY}
@@ -26,8 +43,8 @@ services:
       timeout: 5s
       retries: 5
     depends_on:
-      postgres:
-        condition: service_healthy
+      backend-migrate:
+        condition: service_completed_successfully
       redis:
         condition: service_healthy
       auth:
@@ -88,7 +105,7 @@ services:
     build:
       context: ./services/auth
     environment:
-      DATABASE_URL: postgresql://${POSTGRES_USER:-app}:${POSTGRES_PASSWORD:-password}@postgres:5432/${POSTGRES_DB:-appdb}
+      DATABASE_URL: *database-url
       BETTER_AUTH_URL: http://localhost:3001
       BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET}
       FRONTEND_URL: http://localhost:3000
@@ -114,7 +131,7 @@ services:
       - "3001:3001"
     environment:
       PORT: 3001
-      DATABASE_URL: postgresql://${POSTGRES_USER:-app}:${POSTGRES_PASSWORD:-password}@postgres:5432/${POSTGRES_DB:-appdb}
+      DATABASE_URL: *database-url
       BETTER_AUTH_URL: http://localhost:3001
       BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET}
       FRONTEND_URL: http://localhost:3000

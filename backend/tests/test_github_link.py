@@ -77,11 +77,15 @@ def test_link_redirect_uses_state_and_pkce(client, sign_in, fake_github):
     assert "oauth_state" in client.cookies
 
 
-def test_callback_stores_encrypted_tokens_for_signed_in_user(client, db, sign_in, fake_github):
+def test_callback_stores_encrypted_tokens_for_signed_in_user(
+    client, db, sign_in, fake_github
+):
     sign_in("ba_alice")
     r = _link(client)
     assert r.headers["location"].endswith("/settings?linked=github")
-    conn = db.scalar(select(ProviderConnection).where(ProviderConnection.user_id == "ba_alice"))
+    conn = db.scalar(
+        select(ProviderConnection).where(ProviderConnection.user_id == "ba_alice")
+    )
     assert conn.provider_user_id == "4242" and conn.provider_login == "octocat"
     assert conn.access_token_enc != "ghu_test"  # stored encrypted
     assert decrypt(conn.access_token_enc) == "ghu_test"
@@ -96,7 +100,9 @@ def test_relinking_updates_the_existing_connection(client, db, sign_in, fake_git
     assert _connections(db, provider_user_id="5555") == 1
 
 
-def test_github_account_linked_to_another_user_is_rejected(client, db, sign_in, fake_github):
+def test_github_account_linked_to_another_user_is_rejected(
+    client, db, sign_in, fake_github
+):
     sign_in("ba_alice")
     _link(client)
     sign_in("ba_bob", "bob@example.com")

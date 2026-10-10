@@ -48,7 +48,9 @@ def get_current_user(
     request: Request,
     r: redis.Redis = Depends(get_redis),
 ) -> AuthUser:
-    cookies = [f"{n}={request.cookies[n]}" for n in SESSION_COOKIES if n in request.cookies]
+    cookies = [
+        f"{n}={request.cookies[n]}" for n in SESSION_COOKIES if n in request.cookies
+    ]
     if not cookies:
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Not authenticated.")
     cookie_header = "; ".join(cookies)
@@ -59,10 +61,10 @@ def get_current_user(
 
     try:
         user = fetch_session_user(cookie_header)
-    except AuthServiceUnavailable:
+    except AuthServiceUnavailable as e:
         raise HTTPException(
             status.HTTP_503_SERVICE_UNAVAILABLE, "Authentication service unavailable."
-        )
+        ) from e
     if user is None:
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Not authenticated.")
     r.set(key, user.model_dump_json(), ex=get_settings().auth_session_cache_seconds)

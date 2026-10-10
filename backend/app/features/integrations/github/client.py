@@ -4,7 +4,7 @@ import base64
 import hashlib
 import secrets
 from dataclasses import dataclass
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from urllib.parse import urlencode
 
 import httpx
@@ -93,7 +93,7 @@ class GitHubClient:
             raise GitHubError(data.get("error_description", "token exchange failed"))
         expires_at = None
         if data.get("expires_in"):
-            expires_at = datetime.now(timezone.utc) + timedelta(seconds=int(data["expires_in"]))
+            expires_at = datetime.now(UTC) + timedelta(seconds=int(data["expires_in"]))
         return TokenSet(data["access_token"], data.get("refresh_token"), expires_at)
 
     def fetch_profile(self, token: str) -> GitHubProfile:

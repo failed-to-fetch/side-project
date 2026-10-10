@@ -70,8 +70,8 @@ def complete_link(
     try:
         tokens = github.exchange_code(code, flow["verifier"])
         profile = github.fetch_profile(tokens.access_token)
-    except GitHubError:
-        raise LinkError("github_error")
+    except GitHubError as e:
+        raise LinkError("github_error") from e
 
     taken = db.scalar(
         select(ProviderConnection).where(
@@ -91,9 +91,10 @@ def complete_link(
     _store_tokens(conn, tokens, profile.login)
     try:
         db.commit()
-    except IntegrityError:  # lost a race with another user linking the same account
+    except IntegrityError as e:
+        # Lost a race with another user linking the same account.
         db.rollback()
-        raise LinkError("already_linked")
+        raise LinkError("already_linked") from e
     return conn
 
 
@@ -116,8 +117,12 @@ def _get_connection(db: Session, user_id: str) -> ProviderConnection | None:
     )
 
 
-def _store_tokens(conn: ProviderConnection, tokens: TokenSet, login: str | None) -> None:
+def _store_tokens(
+    conn: ProviderConnection, tokens: TokenSet, login: str | None
+) -> None:
     conn.provider_login = login
     conn.access_token_enc = encrypt(tokens.access_token)
-    conn.refresh_token_enc = encrypt(tokens.refresh_token) if tokens.refresh_token else None
+    conn.refresh_token_enc = (
+        encrypt(tokens.refresh_token) if tokens.refresh_token else None
+    )
     conn.token_expires_at = tokens.expires_at

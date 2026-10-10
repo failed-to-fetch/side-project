@@ -56,15 +56,11 @@ Docker may warn about unset variables on this first run. That is expected until 
 docker compose up -d
 ```
 
-The backend runs with auto-reload for code changes. Changes to `.env` or `docker-compose.yml` need `docker compose up -d backend` to take effect, and changes to `requirements.txt` need `docker compose build backend` first.
+This also applies database migrations: `backend-migrate` and `auth-migrate` run once and exit before the backend and auth service start.
 
-### 5. Apply the database migrations
+The backend runs with auto-reload for code changes. Changes to `.env` or `docker-compose.yml` need `docker compose up -d backend` to take effect, and dependency changes need `docker compose build backend` first (see [Backend dependencies](#backend-dependencies)).
 
-```sh
-docker compose run --rm backend alembic upgrade head
-```
-
-### 6. Check it works
+### 5. Check it works
 
 ```sh
 curl http://localhost:8000/
@@ -73,13 +69,28 @@ docker compose exec postgres psql -U app -d appdb -c "\dt"
 
 The first should return `{"message":"Backend is running"}`. The second should list `alembic_version` and `provider_connections` (the backend's tables) alongside Better Auth's `user`, `session`, `account` and `verification`. Interactive API docs are at <http://localhost:8000/docs>.
 
-### 7. Run the tests
+### 6. Run the tests and linter
 
 ```sh
 docker compose run --rm backend python -m pytest -q
+docker compose run --rm backend ruff check .
+docker compose run --rm backend ruff format .
 ```
 
-See [`backend/tests/README.md`](backend/tests/README.md) for details. The tests use your local development database inside rolled-back transactions, so they leave no data behind.
+See [`backend/tests/README.md`](backend/tests/README.md) for details. The tests use your local development database inside rolled-back transactions, so they leave no data behind. CI (`.github/workflows/backend.yml`) runs the linter, a migration round trip and the tests on every pull request that touches `backend/`.
+
+## Backend dependencies
+
+Dependencies are managed with [uv](https://docs.astral.sh/uv/): `backend/pyproject.toml` lists them, and `backend/uv.lock` pins exact versions. Commit both together. You don't need uv installed locally; run it in the container:
+
+```sh
+docker compose run --rm backend uv add <package>          # runtime dependency
+docker compose run --rm backend uv add --dev <package>    # test/lint tool only
+docker compose run --rm backend uv lock --upgrade         # upgrade everything within the constraints
+docker compose build backend && docker compose up -d backend
+```
+
+The image has two targets. Compose uses `dev` (includes pytest and ruff, code bind-mounted). The default `prod` target has runtime dependencies only, copies the code in, and runs as a non-root user.
 
 ## Database migrations
 
@@ -87,7 +98,7 @@ Schema changes are managed with Alembic. Never use `Base.metadata.create_all()` 
 
 ### Apply migrations
 
-Run this after cloning, and again after pulling changes that add migration files:
+`docker compose up` applies them automatically through the `backend-migrate` service. To apply them by hand (for example after pulling new migration files while the stack is running):
 
 ```sh
 docker compose run --rm backend alembic upgrade head

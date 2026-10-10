@@ -3,7 +3,6 @@ import os
 import psycopg
 import redis
 
-
 POSTGRES_URL = os.getenv(
     "DATABASE_URL",
     "postgresql://app:password@localhost:5432/appdb",

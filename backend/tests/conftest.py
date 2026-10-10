@@ -72,7 +72,9 @@ def sign_in(client, monkeypatch):
 
     monkeypatch.setattr(auth, "fetch_session_user", fake_fetch)
 
-    def _sign_in(user_id: str = "ba_alice", email: str = "alice@example.com") -> AuthUser:
+    def _sign_in(
+        user_id: str = "ba_alice", email: str = "alice@example.com"
+    ) -> AuthUser:
         token = f"token-{user_id}"
         users[token] = AuthUser(id=user_id, email=email)
         client.cookies.set(SESSION_COOKIES[0], token)

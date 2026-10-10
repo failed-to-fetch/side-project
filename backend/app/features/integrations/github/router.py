@@ -24,12 +24,18 @@ def _redirect(path: str) -> RedirectResponse:
 @router.get("/link")
 def github_link(user: CurrentUser, r: RedisClient, github: GitHub) -> RedirectResponse:
     if not github.configured:
-        raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, "GitHub is not configured.")
+        raise HTTPException(
+            status.HTTP_503_SERVICE_UNAVAILABLE, "GitHub is not configured."
+        )
     url, state = service.start_link(r, github, user.id)
     resp = RedirectResponse(url, status_code=302)
     resp.set_cookie(
-        STATE_COOKIE, state, max_age=service.STATE_TTL_SECONDS,
-        httponly=True, samesite="lax", secure=get_settings().cookie_secure,
+        STATE_COOKIE,
+        state,
+        max_age=service.STATE_TTL_SECONDS,
+        httponly=True,
+        samesite="lax",
+        secure=get_settings().cookie_secure,
     )
     return resp
 
@@ -47,7 +53,9 @@ def github_callback(
     if error or not code or not state:
         return _redirect("/settings?error=github_denied")
     try:
-        service.complete_link(db, r, github, code=code, state=state, browser_state=oauth_state)
+        service.complete_link(
+            db, r, github, code=code, state=state, browser_state=oauth_state
+        )
     except service.LinkError as e:
         return _redirect(f"/settings?error={e.reason}")
     return _redirect("/settings?linked=github")

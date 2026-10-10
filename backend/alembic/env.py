@@ -1,4 +1,5 @@
 import os
+from logging.config import fileConfig
 
 from alembic import context
 from sqlalchemy import create_engine, pool
@@ -9,6 +10,8 @@ from app.core.db import Base
 target_metadata = Base.metadata
 
 config = context.config
+if config.config_file_name is not None:
+    fileConfig(config.config_file_name)  # logging setup from alembic.ini
 
 database_url = os.environ.get("DATABASE_URL")
 if not database_url:
