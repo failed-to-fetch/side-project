@@ -4,8 +4,9 @@ on:
   push:
     branches: [Main]
     paths: ["backend/**", ".github/workflows/backend.yml"]
+  # Every pull request, with no path filter: "Backend tests" is a required check
+  # on Main, and a required check that never runs blocks the merge forever.
   pull_request:
-    paths: ["backend/**", ".github/workflows/backend.yml"]
 
 concurrency:
   group: backend-${{ github.ref }}
@@ -13,6 +14,7 @@ concurrency:
 
 jobs:
   test:
+    name: Backend tests  # the check name to require in branch protection
     runs-on: ubuntu-latest
     defaults:
       run:

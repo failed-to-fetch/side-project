@@ -340,9 +340,28 @@ Unchanged images come from Docker's build cache, so a one-line backend change re
      - *SSH Username with private key*, ID `side-project-deploy-ssh`, with the server's username and the contents of `jenkins-deploy`.
      - *Username with password*, ID `github-pat`, with your GitHub username and a fine-grained token that has read-only Contents and Metadata on this repo.
    - Under Manage Jenkins → System, set **Jenkins URL** to the address GitHub will use. Under Global properties, set environment variables `DEPLOY_HOST` (e.g. `ubuntu@79.72.88.229`) and, if the checkout isn't `~/side-project`, `DEPLOY_DIR` (relative to that user's home, or absolute). Don't leave `DEPLOY_HOST` empty: Jenkins would then try to deploy on its own machine.
-   - Create a **Multibranch Pipeline** job with a **GitHub** branch source for this repo, credentials `github-pat`, and a "Filter by name" behaviour that includes only `Main`.
+   - Create a **Multibranch Pipeline** job with a **GitHub** branch source for this repo, credentials `github-pat` (or none, since the repo is public), discovering **all branches**. Every branch gets the *Build images* check that pull requests require. Only `Main`, or a build given `DEPLOY_REF`, deploys.
 4. **Trigger on push:** in the GitHub repo, Settings → Webhooks → Add webhook, with payload URL `https://<your-jenkins>/github-webhook/` (keep the trailing slash), content type `application/json`, and just the push event. If GitHub can't reach your Jenkins, set the job's "Scan Multibranch Pipeline Triggers" to run every 5 minutes instead.
-5. **Recommended:** protect `Main` (Settings → Branches) so the `backend` CI check must pass before merging. Then broken code can't reach the deploy.
+5. **Recommended: require both checks before merging into `Main`**, so broken code can't reach the deploy. See [Protecting Main](#protecting-main).
+
+### Protecting Main
+
+Every pull request gets two checks:
+
+| Check | From | Proves |
+|---|---|---|
+| `Backend tests` | GitHub Actions (`.github/workflows/backend.yml`) | backend lint, migrations, tests |
+| `continuous-integration/jenkins/branch` | Jenkins (*Build images* stage) | all three production images build, including the frontend's TypeScript compile |
+
+To require them: GitHub repo → **Settings → Branches → Add classic branch protection rule**:
+- **Branch name pattern:** `Main`
+- ✓ **Require a pull request before merging**
+- ✓ **Require status checks to pass before merging**, then search for and add **`Backend tests`** and **`continuous-integration/jenkins/branch`**. A check only appears in the search after it has run at least once in the past week, so push a branch first.
+- ✓ **Require branches to be up to date before merging** (optional: re-runs the checks against the latest `Main`)
+- ✓ **Do not allow bypassing the above settings**, so it applies to admins too
+- **Create**
+
+Both workflows must run for every branch, or a pull request waits forever for a missing check. That's why `Backend tests` runs on every pull request, and the Jenkins job must not filter out feature branches.
 
 **If Jenkins runs on the same machine as the app:**
 - **Jenkins in a Docker container** (the usual case): inside the container, `localhost` is the container itself. Add this to the Jenkins service in its compose file and recreate it:

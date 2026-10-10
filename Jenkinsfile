@@ -34,6 +34,38 @@ pipeline {
     }
 
     stages {
+        // Every branch: prove all production images still build (the frontend
+        // image also runs its TypeScript compile). This is what makes the Jenkins
+        // check on a pull request mean something, and a broken image stops a Main
+        // deploy before the server is touched. Uses the Docker socket Jenkins
+        // already has; shared layers also warm the cache the deploy uses.
+        stage('Build images') {
+            steps {
+                sh '''
+                    set -e
+                    if ! docker buildx version >/dev/null 2>&1; then
+                        echo "docker buildx (BuildKit) is missing where Jenkins runs; the images need it." >&2
+                        echo "Install the docker-buildx-plugin package in the Jenkins image." >&2
+                        exit 1
+                    fi
+                    export DOCKER_BUILDKIT=1
+                    docker build --target prod -t "side-project-ci-backend:$GIT_COMMIT" backend
+                    docker build --target prod -t "side-project-ci-auth:$GIT_COMMIT" services/auth
+                    docker build -t "side-project-ci-frontend:$GIT_COMMIT" frontend
+                '''
+            }
+            post {
+                // Drop the tags; the layers stay cached for the next build.
+                always {
+                    sh '''
+                        for s in backend auth frontend; do
+                            docker image rm "side-project-ci-$s:$GIT_COMMIT" >/dev/null 2>&1 || true
+                        done
+                    '''
+                }
+            }
+        }
+
         stage('Deploy') {
             // Runs for Main (BRANCH_NAME in Multibranch jobs, GIT_BRANCH in plain
             // Pipeline jobs), or for any build where DEPLOY_REF was given.
