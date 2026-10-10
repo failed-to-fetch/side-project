@@ -1,3 +1,5 @@
+from contextlib import asynccontextmanager
+
 import redis
 from fastapi import Cookie, Depends, FastAPI, HTTPException, Response, status
 from sqlalchemy import func, select
@@ -5,22 +7,30 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from src.auth import get_current_user
-from src.database import get_db
+from src.config import get_settings
+from src.database import get_db, get_engine
 from src.models import User
 from src.redis_client import get_redis
+from src.routes_github_auth import router as github_auth_router
 from src.schemas import LoginRequest, UserCreate, UserRead
 from src.security import DUMMY_HASH, hash_password, verify_password
 from src.sessions import (
     COOKIE_NAME,
-    COOKIE_SECURE,
-    SESSION_TTL_SECONDS,
     create_session,
     delete_session,
+    set_session_cookie,
 )
 
-app = FastAPI()
-from src.routes_github_auth import router as github_auth_router
 
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    get_settings()  # fail at startup, not on first request, if config is missing
+    yield
+    get_redis().close()
+    get_engine().dispose()
+
+
+app = FastAPI(lifespan=lifespan)
 app.include_router(github_auth_router)
 
 
@@ -66,15 +76,7 @@ def login(
             detail="Invalid email or password.",
         )
 
-    token = create_session(r, user.id)
-    response.set_cookie(
-        key=COOKIE_NAME,
-        value=token,
-        max_age=SESSION_TTL_SECONDS,
-        httponly=True,
-        samesite="lax",
-        secure=COOKIE_SECURE,
-    )
+    set_session_cookie(response, create_session(r, user.id))
     return user
 
 

@@ -1,12 +1,12 @@
 import uuid
 
-from src.database import SessionLocal
+from src.database import get_sessionmaker
 from src.models import User
 
 
 def test_updated_at_changes_on_update():
     email = f"{uuid.uuid4()}@example.com"
-    with SessionLocal() as db:
+    with get_sessionmaker()() as db:
         user = User(email=email, password_hash="x")
         db.add(user)
         try:

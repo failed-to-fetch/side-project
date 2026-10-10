@@ -1,6 +1,5 @@
 import base64
 import hashlib
-import os
 import secrets
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
@@ -8,12 +7,7 @@ from urllib.parse import urlencode
 
 import httpx
 
-CLIENT_ID = os.getenv("GITHUB_CLIENT_ID", "")
-CLIENT_SECRET = os.getenv("GITHUB_CLIENT_SECRET", "")
-REDIRECT_URI = os.getenv(
-    "GITHUB_REDIRECT_URI", "http://localhost:8000/auth/github/callback"
-)
-FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:3000").rstrip("/")
+from src.config import get_settings
 
 AUTHORIZE_URL = "https://github.com/login/oauth/authorize"
 TOKEN_URL = "https://github.com/login/oauth/access_token"
@@ -31,10 +25,6 @@ class TokenSet:
     expires_at: datetime | None
 
 
-def is_configured() -> bool:
-    return bool(CLIENT_ID and CLIENT_SECRET)
-
-
 def make_pkce() -> tuple[str, str]:
     verifier = secrets.token_urlsafe(64)
     digest = hashlib.sha256(verifier.encode()).digest()
@@ -43,9 +33,10 @@ def make_pkce() -> tuple[str, str]:
 
 
 def build_authorize_url(state: str, code_challenge: str) -> str:
+    settings = get_settings()
     params = {
-        "client_id": CLIENT_ID,
-        "redirect_uri": REDIRECT_URI,
+        "client_id": settings.github_client_id,
+        "redirect_uri": settings.github_redirect_uri,
         "state": state,
         "code_challenge": code_challenge,
         "code_challenge_method": "S256",
@@ -54,14 +45,15 @@ def build_authorize_url(state: str, code_challenge: str) -> str:
 
 
 def exchange_code(code: str, code_verifier: str) -> TokenSet:
+    settings = get_settings()
     r = httpx.post(
         TOKEN_URL,
         headers={"Accept": "application/json"},
         data={
-            "client_id": CLIENT_ID,
-            "client_secret": CLIENT_SECRET,
+            "client_id": settings.github_client_id,
+            "client_secret": settings.github_client_secret.get_secret_value(),
             "code": code,
-            "redirect_uri": REDIRECT_URI,
+            "redirect_uri": settings.github_redirect_uri,
             "code_verifier": code_verifier,
         },
         timeout=10,

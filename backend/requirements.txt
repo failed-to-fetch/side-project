@@ -5,6 +5,7 @@ psycopg[binary]
 redis
 uvicorn[standard]
 pydantic[email]
+pydantic-settings
 pwdlib[argon2]
 pytest
 httpx

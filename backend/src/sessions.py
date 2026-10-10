@@ -1,13 +1,13 @@
 import hashlib
-import os
 import secrets
 
 import redis
 from fastapi import Response
 
+from src.config import get_settings
+
 COOKIE_NAME = "session_id"
 SESSION_TTL_SECONDS = 60 * 60 * 24 * 7  # 7 days
-COOKIE_SECURE = os.getenv("COOKIE_SECURE", "false").lower() == "true" # switch to true if we get https working :)
 
 
 def _key(token: str) -> str:
@@ -35,5 +35,5 @@ def set_session_cookie(response: Response, token: str) -> None:
         max_age=SESSION_TTL_SECONDS,
         httponly=True,
         samesite="lax",
-        secure=COOKIE_SECURE,
+        secure=get_settings().cookie_secure,
     )

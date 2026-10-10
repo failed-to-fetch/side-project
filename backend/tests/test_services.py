@@ -18,33 +18,15 @@ REDIS_URL = os.getenv(
 def test_postgres():
     print("\n--- PostgreSQL ---")
 
+    # Read-only check: creating tables here leaks them into Alembic autogenerate.
     with psycopg.connect(POSTGRES_URL) as conn:
         with conn.cursor() as cursor:
-            cursor.execute(
-                """
-                CREATE TABLE IF NOT EXISTS test_messages (
-                    id SERIAL PRIMARY KEY,
-                    message TEXT NOT NULL
-                )
-                """
-            )
-
-            cursor.execute(
-                "INSERT INTO test_messages (message) VALUES (%s) RETURNING id",
-                ("Hello from Docker!",),
-            )
-
-            message_id = cursor.fetchone()[0]
-
-            cursor.execute(
-                "SELECT message FROM test_messages WHERE id = %s",
-                (message_id,),
-            )
-
+            cursor.execute("SELECT %s", ("Hello from Docker!",))
             message = cursor.fetchone()[0]
 
-    print(f"Sent:     Hello from Docker!")
+    print("Sent:     Hello from Docker!")
     print(f"Retrieved: {message}")
+    assert message == "Hello from Docker!"
 
 
 def test_redis():

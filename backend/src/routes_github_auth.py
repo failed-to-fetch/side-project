@@ -11,11 +11,12 @@ from sqlalchemy.orm import Session
 
 from src import github_oauth
 from src.auth import get_current_user
+from src.config import get_settings
 from src.crypto import encrypt
 from src.database import get_db
 from src.models import OAuthIdentity, User
 from src.redis_client import get_redis
-from src.sessions import COOKIE_SECURE, create_session, set_session_cookie
+from src.sessions import create_session, set_session_cookie
 
 router = APIRouter(prefix="/auth/github", tags=["auth"])
 
@@ -30,11 +31,12 @@ def _redirect(url: str) -> RedirectResponse:
 
 
 def _fail(reason: str) -> RedirectResponse:
-    return _redirect(f"{github_oauth.FRONTEND_URL}/login?error={reason}")
+    return _redirect(f"{get_settings().frontend_url}/login?error={reason}")
 
 
 def _start(r: redis.Redis, link_user_id: int | None) -> RedirectResponse:
-    if not github_oauth.is_configured():
+    settings = get_settings()
+    if not settings.github_configured:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="GitHub sign-in is not configured.",
@@ -50,7 +52,7 @@ def _start(r: redis.Redis, link_user_id: int | None) -> RedirectResponse:
     # Binds this flow to this browser, so a callback URL planted by an attacker is rejected.
     resp.set_cookie(
         STATE_COOKIE, state, max_age=STATE_TTL_SECONDS,
-        httponly=True, samesite="lax", secure=COOKIE_SECURE,
+        httponly=True, samesite="lax", secure=settings.cookie_secure,
     )
     return resp
 
@@ -121,7 +123,7 @@ def github_callback(
             db.add(identity)
         _store_tokens(identity, tokens, login)
         db.commit()
-        return _redirect(f"{github_oauth.FRONTEND_URL}/settings?linked=github")
+        return _redirect(f"{get_settings().frontend_url}/settings?linked=github")
 
     # Logging in
     if identity is not None:
@@ -150,7 +152,7 @@ def github_callback(
             db.rollback()
             return _fail("account_exists")
 
-    resp = _redirect(github_oauth.FRONTEND_URL)
+    resp = _redirect(get_settings().frontend_url)
     set_session_cookie(resp, create_session(r, user.id))
     return resp
 

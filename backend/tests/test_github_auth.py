@@ -10,9 +10,8 @@ PASSWORD = "correct-horse-battery"
 
 
 @pytest.fixture
-def fake_github(monkeypatch):
-    monkeypatch.setattr(github_oauth, "CLIENT_ID", "test-client")
-    monkeypatch.setattr(github_oauth, "CLIENT_SECRET", "test-secret")
+def fake_github(monkeypatch, override_settings):
+    override_settings(GITHUB_CLIENT_ID="test-client", GITHUB_CLIENT_SECRET="test-secret")
     fake = {"profile": {"id": 4242, "login": "octocat"}, "email": "octo@example.com"}
     monkeypatch.setattr(
         github_oauth, "exchange_code",

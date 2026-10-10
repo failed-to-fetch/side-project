@@ -38,7 +38,6 @@ def upgrade() -> None:
     sa.UniqueConstraint('provider', 'provider_user_id')
     )
     op.create_index(op.f('ix_oauth_identities_user_id'), 'oauth_identities', ['user_id'], unique=False)
-    op.drop_table('test_messages')
     op.alter_column('users', 'password_hash',
                existing_type=sa.TEXT(),
                nullable=True)
@@ -51,11 +50,6 @@ def downgrade() -> None:
     op.alter_column('users', 'password_hash',
                existing_type=sa.TEXT(),
                nullable=False)
-    op.create_table('test_messages',
-    sa.Column('id', sa.INTEGER(), autoincrement=True, nullable=False),
-    sa.Column('message', sa.TEXT(), autoincrement=False, nullable=False),
-    sa.PrimaryKeyConstraint('id', name=op.f('test_messages_pkey'))
-    )
     op.drop_index(op.f('ix_oauth_identities_user_id'), table_name='oauth_identities')
     op.drop_table('oauth_identities')
     # ### end Alembic commands ###

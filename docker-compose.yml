@@ -10,7 +10,7 @@ services:
     volumes:
       - ./backend:/app
     environment:
-      DATABASE_URL: postgresql://app:password@postgres:5432/appdb
+      DATABASE_URL: postgresql://${POSTGRES_USER:-app}:${POSTGRES_PASSWORD:-password}@postgres:5432/${POSTGRES_DB:-appdb}
       REDIS_URL: redis://redis:6379
       WATCHFILES_FORCE_POLLING: "true"
       TOKEN_ENCRYPTION_KEY: ${TOKEN_ENCRYPTION_KEY}
@@ -19,8 +19,9 @@ services:
       GITHUB_REDIRECT_URI: http://localhost:8000/auth/github/callback
       FRONTEND_URL: http://localhost:3000
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U app -d appdb"]
-      interval: 5s
+      # The python image has no curl or pg_isready, so probe the API with the stdlib.
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/', timeout=3)"]
+      interval: 10s
       timeout: 5s
       retries: 5
     depends_on:
@@ -49,15 +50,15 @@ services:
       context: ./services/postgres
     container_name: postgres
     environment:
-      POSTGRES_USER: app
-      POSTGRES_PASSWORD: password
-      POSTGRES_DB: appdb
+      POSTGRES_USER: ${POSTGRES_USER:-app}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-password}
+      POSTGRES_DB: ${POSTGRES_DB:-appdb}
     ports:
       - "5432:5432"
     volumes:
       - postgres-data:/var/lib/postgresql
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U app -d appdb"]
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
       interval: 5s
       timeout: 5s
       retries: 5
@@ -84,7 +85,7 @@ services:
     build:
       context: ./services/auth
     environment:
-      DATABASE_URL: postgresql://app:password@postgres:5432/appdb
+      DATABASE_URL: postgresql://${POSTGRES_USER:-app}:${POSTGRES_PASSWORD:-password}@postgres:5432/${POSTGRES_DB:-appdb}
       BETTER_AUTH_URL: http://localhost:3001
       BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET}
       FRONTEND_URL: http://localhost:3000
@@ -110,7 +111,7 @@ services:
       - "3001:3001"
     environment:
       PORT: 3001
-      DATABASE_URL: postgresql://app:password@postgres:5432/appdb
+      DATABASE_URL: postgresql://${POSTGRES_USER:-app}:${POSTGRES_PASSWORD:-password}@postgres:5432/${POSTGRES_DB:-appdb}
       BETTER_AUTH_URL: http://localhost:3001
       BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET}
       FRONTEND_URL: http://localhost:3000

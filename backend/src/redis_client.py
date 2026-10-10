@@ -1,9 +1,10 @@
-import os
+from functools import lru_cache
 
 import redis
 
-_client = redis.Redis.from_url(os.environ["REDIS_URL"], decode_responses=True)
+from src.config import get_settings
 
 
+@lru_cache
 def get_redis() -> redis.Redis:
-    return _client
+    return redis.Redis.from_url(get_settings().redis_url, decode_responses=True)
