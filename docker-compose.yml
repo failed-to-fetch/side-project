@@ -80,6 +80,28 @@ services:
     networks:
       - app-network
 
+  auth-migrate:
+    build:
+      context: ./services/auth
+    environment:
+      DATABASE_URL: postgresql://app:password@postgres:5432/appdb
+      BETTER_AUTH_URL: http://localhost:3001
+      BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET}
+      FRONTEND_URL: http://localhost:3000
+      GITHUB_LOGIN_CLIENT_ID: ${GITHUB_LOGIN_CLIENT_ID}
+      GITHUB_LOGIN_CLIENT_SECRET: ${GITHUB_LOGIN_CLIENT_SECRET}
+      GITLAB_LOGIN_CLIENT_ID: ${GITLAB_LOGIN_CLIENT_ID}
+      GITLAB_LOGIN_CLIENT_SECRET: ${GITLAB_LOGIN_CLIENT_SECRET}
+      BITBUCKET_LOGIN_CLIENT_ID: ${BITBUCKET_LOGIN_CLIENT_ID}
+      BITBUCKET_LOGIN_CLIENT_SECRET: ${BITBUCKET_LOGIN_CLIENT_SECRET}
+    command: ["pnpm", "run", "auth:migrate:docker"]
+    restart: "no"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - app-network
+
   auth:
     build:
       context: ./services/auth
@@ -101,6 +123,8 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+      auth-migrate:
+        condition: service_completed_successfully
     networks:
       - app-network
 

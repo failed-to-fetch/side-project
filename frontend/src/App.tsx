@@ -19,12 +19,11 @@ export default function App() {
 
     if (error) {
       console.error("Failed to get session:", error);
+      setSession(null);
       return false;
     }
 
-    console.log("Session returned by Better Auth:", data);
     setSession(data as Session | null);
-
     return !!data?.user;
   }, []);
 
@@ -60,5 +59,5 @@ export default function App() {
     );
   }
 
-  return <LoginPage onSignIn={refreshSession}/>;
+  return <LoginPage onSignIn={refreshSession} />;
 }
