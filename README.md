@@ -104,7 +104,7 @@ docker compose run --rm backend alembic history    # all revisions
 
 ### Create a new migration
 
-1. Change the models in `backend/app/models.py`. Every model must be imported there so Alembic can see it.
+1. Change or add the model in its feature folder (e.g. `backend/app/features/integrations/models.py`). A new model must also be imported in `backend/app/models.py`, or Alembic won't see it.
 2. Generate the migration:
 
 ```sh
@@ -132,7 +132,7 @@ docker compose run --rm backend alembic downgrade -1
 
 Downgrades can destroy data (for example, dropping a table). Downgrading past "replace users with provider connections" deletes every linked GitHub account. Take a backup first if the data matters.
 
-Alembic only manages tables that have a model in `backend/app/models.py`. Better Auth's tables are managed by its own migrations (`auth-migrate` in compose) and are ignored by autogenerate.
+Alembic only manages tables whose model is registered in `backend/app/models.py`. Better Auth's tables are managed by its own migrations (`auth-migrate` in compose) and are ignored by autogenerate.
 
 ### Reset your local database
 
@@ -192,7 +192,7 @@ You do not need the private key (`.pem`) or the App ID yet. They will be needed 
 
 ```sh
 docker compose up -d backend
-docker compose exec backend python -c "from app.core.config import get_settings; print(get_settings().github_configured)"
+docker compose exec backend python -c "from app.features.integrations.github.client import get_github_client; print(get_github_client().configured)"
 ```
 
 This must print `True`.

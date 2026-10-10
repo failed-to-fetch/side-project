@@ -1,7 +1,7 @@
 import httpx
 
-from app import auth
-from app.auth import SESSION_COOKIES, AuthUser
+from app.features.auth import session as auth
+from app.features.auth.session import SESSION_COOKIES, AuthUser
 
 
 def test_me_requires_session_cookie(client):

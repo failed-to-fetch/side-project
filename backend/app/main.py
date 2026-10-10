@@ -1,12 +1,11 @@
 from contextlib import asynccontextmanager
 
-from fastapi import Depends, FastAPI
+from fastapi import FastAPI
 
-from app.auth import AuthUser, get_current_user
+from app.api.router import api_router
 from app.core.config import get_settings
 from app.core.db import get_engine
 from app.core.redis_client import get_redis
-from app.routes_github_auth import router as github_auth_router
 
 
 @asynccontextmanager
@@ -18,14 +17,9 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(lifespan=lifespan)
-app.include_router(github_auth_router)
+app.include_router(api_router)
 
 
 @app.get("/")
 def root():
     return {"message": "Backend is running"}
-
-
-@app.get("/users/me", response_model=AuthUser)
-def read_me(current_user: AuthUser = Depends(get_current_user)) -> AuthUser:
-    return current_user

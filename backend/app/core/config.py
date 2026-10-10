@@ -49,10 +49,6 @@ class Settings(BaseSettings):
     def _strip_trailing_slash(cls, v: str) -> str:
         return v.rstrip("/")
 
-    @property
-    def github_configured(self) -> bool:
-        return bool(self.github_client_id and self.github_client_secret.get_secret_value())
-
 
 @lru_cache
 def get_settings() -> Settings:

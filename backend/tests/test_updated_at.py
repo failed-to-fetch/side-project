@@ -1,7 +1,7 @@
 import uuid
 
 from app.core.db import get_sessionmaker
-from app.models import ProviderConnection
+from app.features.integrations.models import ProviderConnection
 
 
 def test_updated_at_changes_on_update():

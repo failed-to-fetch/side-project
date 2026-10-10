@@ -22,7 +22,7 @@ docker compose run --rm backend python -m pytest -q
 
 Use `python -m pytest` rather than bare `pytest`. It puts `/app` on the import path so `from app.main import app` works. Compose starts Postgres and Redis automatically (`depends_on`).
 
-Expected result: all tests pass (20 at the time of writing).
+Expected result: all tests pass (25 at the time of writing).
 
 ## Useful variations
 
@@ -45,7 +45,8 @@ docker compose run --rm backend python -m pytest -x -s
 | File | Covers |
 |---|---|
 | `test_auth.py` | Checking Better Auth sessions: 401 without or with an unknown cookie, Redis caching, 503 when the auth service is down, and how the `get-session` response is parsed |
-| `test_github_auth.py` | Linking GitHub: sign-in required, state and PKCE, encrypted token storage, relinking, one GitHub account per user, unlinking |
+| `test_github_link.py` | Linking GitHub through the API, with a fake `GitHubClient`: sign-in required, state and PKCE, encrypted token storage, relinking, one GitHub account per user, unlinking |
+| `test_github_client.py` | `GitHubClient` against a fake HTTP transport: request contents, GitHub's error-in-a-200 replies, network failures |
 | `test_updated_at.py` | `updated_at` changes when a row is updated |
 | `test_services.py` | Postgres and Redis are reachable |
 | `conftest.py` | Shared fixtures (see below) |
@@ -83,4 +84,5 @@ The `httpx` deprecation warning from Starlette's `TestClient` is harmless.
 - Use the `client` fixture for API tests. It already isolates Postgres and Redis.
 - For endpoints that need a signed-in user, call `sign_in()` (or `sign_in("ba_bob", "bob@example.com")` for a second user). It sets a fake Better Auth session cookie and answers the backend's session lookup for it.
 - Use `override_settings(NAME="value")` to change a setting for one test.
+- Replace an external service with `app.dependency_overrides[get_x] = lambda: fake` (see `fake_github` in `test_github_link.py`). The `client` fixture clears overrides after each test.
 - Avoid naming a file `*_test.py` unless it is meant to be collected. Pytest picks up both `test_*.py` and `*_test.py`.

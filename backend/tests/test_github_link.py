@@ -3,21 +3,34 @@ from urllib.parse import parse_qs, urlparse
 import pytest
 from sqlalchemy import func, select
 
-from app import github_oauth
 from app.core.crypto import decrypt
-from app.models import ProviderConnection
+from app.features.integrations.github.client import (
+    GitHubClient,
+    GitHubProfile,
+    TokenSet,
+    get_github_client,
+)
+from app.features.integrations.models import ProviderConnection
+from app.main import app
+
+
+class FakeGitHub(GitHubClient):
+    def __init__(self):
+        super().__init__("test-client", "test-secret", "http://test/callback")
+        self.profile = GitHubProfile(id="4242", login="octocat")
+
+    def exchange_code(self, code, code_verifier):
+        return TokenSet("ghu_test", "ghr_test", None)
+
+    def fetch_profile(self, token):
+        return self.profile
 
 
 @pytest.fixture
-def fake_github(monkeypatch, override_settings):
-    override_settings(GITHUB_CLIENT_ID="test-client", GITHUB_CLIENT_SECRET="test-secret")
-    fake = {"profile": {"id": 4242, "login": "octocat"}}
-    monkeypatch.setattr(
-        github_oauth, "exchange_code",
-        lambda code, verifier: github_oauth.TokenSet("ghu_test", "ghr_test", None),
-    )
-    monkeypatch.setattr(github_oauth, "fetch_profile", lambda token: fake["profile"])
-    return fake
+def fake_github(client):
+    fake = FakeGitHub()
+    app.dependency_overrides[get_github_client] = lambda: fake
+    return fake  # the client fixture clears overrides afterwards
 
 
 def _begin(client):
@@ -49,9 +62,9 @@ def test_link_requires_sign_in(client, fake_github):
     assert client.get("/auth/github/link", follow_redirects=False).status_code == 401
 
 
-def test_link_returns_503_when_github_not_configured(client, sign_in, override_settings):
+def test_link_returns_503_when_github_not_configured(client, sign_in):
     sign_in()
-    override_settings(GITHUB_CLIENT_ID="", GITHUB_CLIENT_SECRET="")
+    app.dependency_overrides[get_github_client] = lambda: GitHubClient("", "", "")
     assert client.get("/auth/github/link", follow_redirects=False).status_code == 503
 
 
@@ -77,7 +90,7 @@ def test_callback_stores_encrypted_tokens_for_signed_in_user(client, db, sign_in
 def test_relinking_updates_the_existing_connection(client, db, sign_in, fake_github):
     sign_in("ba_alice")
     _link(client)
-    fake_github["profile"] = {"id": 5555, "login": "other-account"}
+    fake_github.profile = GitHubProfile(id="5555", login="other-account")
     _link(client)
     assert _connections(db, user_id="ba_alice") == 1
     assert _connections(db, provider_user_id="5555") == 1

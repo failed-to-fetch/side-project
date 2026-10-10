@@ -3,11 +3,11 @@ import redis as redis_lib
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 
-from app import auth
-from app.auth import SESSION_COOKIES, AuthUser
 from app.core.config import get_settings
 from app.core.db import get_db, get_engine
 from app.core.redis_client import get_redis
+from app.features.auth import session as auth
+from app.features.auth.session import SESSION_COOKIES, AuthUser
 from app.main import app
 
 
