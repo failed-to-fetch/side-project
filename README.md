@@ -155,7 +155,7 @@ If Vite runs on a different port, add that origin to `TRUSTED_ORIGINS` in `.env`
 **Frontend only, against a deployed server.** No Docker needed: Vite can forward `/api` to a server that's already running, such as the test VM. Create `frontend/.env.local` (git-ignored; see `frontend/.env.example`):
 
 ```dotenv
-VITE_API_PROXY=https://79-72-88-229.sslip.io
+VITE_API_PROXY=https://203-0-113-10.sslip.io
 ```
 
 Then `pnpm dev` and open <http://localhost:5173>. The terminal shows `[api proxy] /api -> https://...` so you can see which server you're using. Things to know:
@@ -303,18 +303,18 @@ Postgres (5432), Redis (6379), the backend (8000) and auth (3001) are bound to `
 
 ### HTTPS
 
-Caddy can get a free Let's Encrypt certificate by itself, as long as it has a hostname that points at the VM. If you don't have a domain, [sslip.io](https://sslip.io) provides one: `79-72-88-229.sslip.io` resolves to `79.72.88.229`. Replace the dashes with your IP's numbers.
+Caddy can get a free Let's Encrypt certificate by itself, as long as it has a hostname that points at the VM. If you don't have a domain, [sslip.io](https://sslip.io) provides one: `203-0-113-10.sslip.io` resolves to `203.0.113.10`. Replace the dashes with your IP's numbers.
 
 1. In the VM's `.env`:
    ```dotenv
-   SITE_ADDRESS=79-72-88-229.sslip.io
-   PUBLIC_URL=https://79-72-88-229.sslip.io
+   SITE_ADDRESS=203-0-113-10.sslip.io
+   PUBLIC_URL=https://203-0-113-10.sslip.io
    COOKIE_SECURE=true
    FRONTEND_PORT=80
    HTTPS_PORT=443
    ```
 2. In the cloud firewall, allow inbound **TCP 80 and 443**. Port 80 must be open to the whole internet while the certificate is issued and renewed, because Let's Encrypt connects to it to verify the domain. Caddy also uses it to redirect HTTP to HTTPS.
-3. Update both GitHub callback URLs to `https://79-72-88-229.sslip.io/api/...`.
+3. Update both GitHub callback URLs to `https://203-0-113-10.sslip.io/api/...`.
 4. `docker compose up -d`, then follow `docker compose logs -f frontend` until you see `certificate obtained successfully` (usually within a minute).
 
 Certificates are kept in the `caddy-data` volume and renewed automatically. If issuance fails, the logs say why. Usually port 80 isn't reachable from the internet, or the hostname doesn't resolve to this VM.
@@ -339,7 +339,7 @@ Unchanged images come from Docker's build cache, so a one-line backend change re
    - Add two credentials:
      - *SSH Username with private key*, ID `side-project-deploy-ssh`, with the server's username and the contents of `jenkins-deploy`.
      - *Username with password*, ID `github-pat`, with your GitHub username and a fine-grained token that has read-only Contents and Metadata on this repo.
-   - Under Manage Jenkins → System, set **Jenkins URL** to the address GitHub will use. Under Global properties, set environment variables `DEPLOY_HOST` (e.g. `ubuntu@79.72.88.229`) and, if the checkout isn't `~/side-project`, `DEPLOY_DIR` (relative to that user's home, or absolute). Don't leave `DEPLOY_HOST` empty: Jenkins would then try to deploy on its own machine.
+   - Under Manage Jenkins → System, set **Jenkins URL** to the address GitHub will use. Under Global properties, set environment variables `DEPLOY_HOST` (e.g. `ubuntu@203.0.113.10`) and, if the checkout isn't `~/side-project`, `DEPLOY_DIR` (relative to that user's home, or absolute). Don't leave `DEPLOY_HOST` empty: Jenkins would then try to deploy on its own machine.
    - Create a **Multibranch Pipeline** job with a **GitHub** branch source for this repo, credentials `github-pat` (or none, since the repo is public), discovering **all branches**. Every branch gets the *Build images* check that pull requests require. Only `Main`, or a build given `DEPLOY_REF`, deploys.
 4. **Trigger on push:** in the GitHub repo, Settings → Webhooks → Add webhook, with payload URL `https://<your-jenkins>/github-webhook/` (keep the trailing slash), content type `application/json`, and just the push event. If GitHub can't reach your Jenkins, set the job's "Scan Multibranch Pipeline Triggers" to run every 5 minutes instead.
 5. **Recommended: require both checks before merging into `Main`**, so broken code can't reach the deploy. See [Protecting Main](#protecting-main).

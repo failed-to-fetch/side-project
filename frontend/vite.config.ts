@@ -5,7 +5,7 @@ import { defineConfig, loadEnv } from 'vite'
 import { VitePWA } from 'vite-plugin-pwa'
 
 // Where `pnpm dev` sends /api: the local stack by default, or a remote one,
-// e.g. VITE_API_PROXY=https://79-72-88-229.sslip.io in frontend/.env.local.
+// e.g. VITE_API_PROXY=https://203-0-113-10.sslip.io in frontend/.env.local.
 // Read from the shell or frontend/.env*.local; the proxy only exists in dev.
 const apiTarget =
   loadEnv('development', process.cwd(), '').VITE_API_PROXY ||

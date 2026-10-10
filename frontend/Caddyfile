@@ -5,7 +5,7 @@
 
 # SITE_ADDRESS (from compose) decides how Caddy serves:
 #   :80 (default)              plain HTTP, for local development
-#   79-72-88-229.sslip.io      a hostname: automatic HTTPS with a Let's Encrypt
+#   203-0-113-10.sslip.io      a hostname: automatic HTTPS with a Let's Encrypt
 #                              certificate, and HTTP redirected to HTTPS
 {$SITE_ADDRESS::80} {
 	root * /srv
