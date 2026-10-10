@@ -63,8 +63,16 @@ services:
     build:
       context: ./frontend
     container_name: frontend
+    environment:
+      # :80 = plain HTTP. A hostname (e.g. 79-72-88-229.sslip.io) = automatic HTTPS.
+      SITE_ADDRESS: ${SITE_ADDRESS:-:80}
     ports:
       - "${FRONTEND_PORT:-3000}:80"
+      - "${HTTPS_PORT:-3443}:443"
+    volumes:
+      # Certificates and keys; kept so restarts don't request new ones.
+      - caddy-data:/data
+      - caddy-config:/config
     depends_on:
       backend:
         condition: service_healthy
@@ -158,6 +166,8 @@ services:
 volumes:
   postgres-data:
   redis-data:
+  caddy-data:
+  caddy-config:
 
 networks:
   app-network:

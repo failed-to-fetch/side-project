@@ -29,7 +29,7 @@ const publicOrigin = (() => {
     if (url.pathname !== "/" || url.search || url.hash) {
         throw new Error(
             `BETTER_AUTH_URL (PUBLIC_URL) must be just scheme://host[:port] with no path, ` +
-                `got "${raw}". Use "${url.origin}".`
+                `e.g. http://203.0.113.10:3000. Got "${raw}".`
         );
     }
     return url.origin;

@@ -52,7 +52,7 @@ class Settings(BaseSettings):
         if url.scheme not in ("http", "https") or not url.netloc:
             raise ValueError("must start with http:// or https://")
         if url.path.rstrip("/") or url.query or url.fragment:
-            raise ValueError(f"must have no path, e.g. {url.scheme}://{url.netloc}")
+            raise ValueError("must have no path, e.g. http://203.0.113.10:3000")
         return f"{url.scheme}://{url.netloc}"
 
 

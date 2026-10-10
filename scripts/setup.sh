@@ -154,8 +154,9 @@ if $start; then
   fi
   echo
   docker compose up -d --build
+  url=$(get PUBLIC_URL)
+  url=${url:-http://localhost:3000}
   echo
-  echo "Frontend:     http://localhost:3000"
-  echo "Auth service: http://localhost:3001"
-  echo "Backend API:  http://localhost:8000/docs"
+  echo "App:      $url"
+  echo "API docs: $url/api/docs"
 fi

@@ -287,7 +287,25 @@ curl -m 5 http://203.0.113.10:8000/api/health     # must time out or be refused
 
 Postgres (5432), Redis (6379), the backend (8000) and auth (3001) are bound to `127.0.0.1` on the VM and must not be reachable from outside. This matters because Docker's published ports bypass `ufw` on Linux, so a host firewall alone doesn't protect them.
 
-**Limits.** This is the development setup: the backend runs with auto-reload from a bind mount, and traffic is plain HTTP, so passwords cross the network unencrypted. Use it for testing, with test accounts. For HTTPS, put the VM behind a TLS-terminating proxy or load balancer, then set `PUBLIC_URL=https://...` and `COOKIE_SECURE=true`.
+### HTTPS
+
+Caddy can get a free Let's Encrypt certificate by itself, as long as it has a hostname that points at the VM. If you don't have a domain, [sslip.io](https://sslip.io) provides one: `79-72-88-229.sslip.io` resolves to `79.72.88.229`. Replace the dashes with your IP's numbers.
+
+1. In the VM's `.env`:
+   ```dotenv
+   SITE_ADDRESS=79-72-88-229.sslip.io
+   PUBLIC_URL=https://79-72-88-229.sslip.io
+   COOKIE_SECURE=true
+   FRONTEND_PORT=80
+   HTTPS_PORT=443
+   ```
+2. In the cloud firewall, allow inbound **TCP 80 and 443**. Port 80 must be open to the whole internet while the certificate is issued and renewed, because Let's Encrypt connects to it to verify the domain. Caddy also uses it to redirect HTTP to HTTPS.
+3. Update both GitHub callback URLs to `https://79-72-88-229.sslip.io/api/...`.
+4. `docker compose up -d`, then follow `docker compose logs -f frontend` until you see `certificate obtained successfully` (usually within a minute).
+
+Certificates are kept in the `caddy-data` volume and renewed automatically. If issuance fails, the logs say why. Usually port 80 isn't reachable from the internet, or the hostname doesn't resolve to this VM.
+
+**Limits.** This is still the development setup: the backend runs with auto-reload from a bind mount and the dev image. That's fine for testing on a VM, but it isn't production-ready.
 
 ## Troubleshooting
 
@@ -322,7 +340,7 @@ Start with `docker compose ps -a` and `docker compose logs <service> --tail 60`.
 
 **Not built yet**
 - Most of the frontend
-- HTTPS in the bundled Caddy config (see [Running on a server or VM](#running-on-a-server-or-vm))
+- A production compose setup (no auto-reload or bind mounts)
 - GitHub repo listing and installation tokens
 - Repo cloning and analysis jobs
 - Password reset, email verification, login rate limiting
