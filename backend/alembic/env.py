@@ -3,8 +3,8 @@ import os
 from alembic import context
 from sqlalchemy import create_engine, pool
 
-from src.database import Base
-from src.models import User
+from app.core.db import Base
+from app.models import User
 
 target_metadata = Base.metadata
 
@@ -20,10 +20,20 @@ config.set_main_option(
 )
 
 
+def include_name(name, type_, parent_names):
+    # The database is shared with Better Auth (user, session, account, ...).
+    # Only compare tables we have models for, or autogenerate will try to drop theirs.
+    # Trade-off: deleting a model won't autogenerate a DROP TABLE; write that by hand.
+    if type_ == "table":
+        return name in target_metadata.tables
+    return True
+
+
 def run_migrations_offline():
     context.configure(
         url=database_url,
         target_metadata=target_metadata,
+        include_name=include_name,
         literal_binds=True,
         dialect_opts={"paramstyle": "named"},
         compare_type=True,
@@ -43,6 +53,7 @@ def run_migrations_online():
         context.configure(
             connection=connection,
             target_metadata=target_metadata,
+            include_name=include_name,
             compare_type=True,
         )
 
