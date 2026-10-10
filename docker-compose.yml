@@ -64,7 +64,7 @@ services:
       context: ./frontend
     container_name: frontend
     environment:
-      # :80 = plain HTTP. A hostname (e.g. 79-72-88-229.sslip.io) = automatic HTTPS.
+      # :80 = plain HTTP. A hostname (e.g. 203-0-113-10.sslip.io) = automatic HTTPS.
       SITE_ADDRESS: ${SITE_ADDRESS:-:80}
     ports:
       - "${FRONTEND_PORT:-3000}:80"
