@@ -25,10 +25,8 @@ class Settings(BaseSettings):
     github_client_secret: SecretStr = SecretStr("")
     github_redirect_uri: str = "http://localhost:8000/auth/github/callback"
 
-    # Better Auth owns sign-in; the backend asks it who a session belongs to.
-    auth_service_url: str = "http://auth:3001"
-    # How long a checked session is cached, so also how long a sign-out takes to apply here.
-    auth_session_cache_seconds: int = 60
+    auth_service_url: str = "http://auth:3001" # Better Auth owns sign-in
+    auth_session_cache_seconds: int = 60 # How long a checked session is cached
 
     frontend_url: str = "http://localhost:3000"
     cookie_secure: bool = False
