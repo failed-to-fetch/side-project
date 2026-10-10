@@ -40,7 +40,7 @@ class Settings(BaseSettings):
             Fernet(v.get_secret_value())
         except ValueError as e:
             raise ValueError(
-                "must be a Fernet key; generate one with scripts/generate-encryption-key.sh"
+                "must be a Fernet key; run scripts/setup.sh to generate one"
             ) from e
         return v
 

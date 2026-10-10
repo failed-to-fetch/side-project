@@ -24,43 +24,29 @@ A local Python virtual environment is optional. It only helps your editor resolv
 
 All commands run from the project root.
 
+The scripts in `scripts/` are bash. On Windows, run them from Git Bash (installed with Git for Windows), not PowerShell.
+
 ### 1. Create your `.env`
 
 ```sh
-cp .env.example .env        # PowerShell: Copy-Item .env.example .env
+scripts/setup.sh
 ```
 
-`.env` is git-ignored. Check with `git check-ignore .env`, which should print `.env`.
+This copies `.env.example` to `.env` and generates `TOKEN_ENCRYPTION_KEY`, `BETTER_AUTH_SECRET` and `POSTGRES_PASSWORD`. It's safe to re-run: it never overwrites a value you've set. Back up `TOKEN_ENCRYPTION_KEY`: if you lose it, stored tokens can't be decrypted and users have to re-link GitHub.
 
-### 2. Build the images
+It then lists the values you have to fill in yourself, such as the GitHub OAuth App for sign-in (the comments in `.env` explain each one). `.env` is git-ignored. Check with `git check-ignore .env`, which should print `.env`.
 
-```sh
-docker compose build
-```
-
-### 3. Generate a token encryption key
-
-GitHub tokens are stored encrypted in the database. Generate a key:
+### 2. Start the services
 
 ```sh
-docker compose run --rm backend python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
-```
-
-Put the output in `.env` as `TOKEN_ENCRYPTION_KEY=...` (no quotes or spaces). Keep a copy somewhere safe: if you lose the key, stored tokens can't be decrypted and users have to re-link GitHub.
-
-Docker may warn about unset variables on this first run. That is expected until `.env` is filled in.
-
-### 4. Start the services
-
-```sh
-docker compose up -d
+scripts/setup.sh --up        # or: docker compose up -d --build
 ```
 
 This also applies database migrations: `backend-migrate` and `auth-migrate` run once and exit before the backend and auth service start.
 
 The backend runs with auto-reload for code changes. Changes to `.env` or `docker-compose.yml` need `docker compose up -d backend` to take effect, and dependency changes need `docker compose build backend` first (see [Backend dependencies](#backend-dependencies)).
 
-### 5. Check it works
+### 3. Check it works
 
 ```sh
 curl http://localhost:8000/
@@ -69,12 +55,11 @@ docker compose exec postgres psql -U app -d appdb -c "\dt"
 
 The first should return `{"message":"Backend is running"}`. The second should list `alembic_version` and `provider_connections` (the backend's tables) alongside Better Auth's `user`, `session`, `account` and `verification`. Interactive API docs are at <http://localhost:8000/docs>.
 
-### 6. Run the tests and linter
+### 4. Run the tests and linter
 
 ```sh
-docker compose run --rm backend python -m pytest -q
-docker compose run --rm backend ruff check .
-docker compose run --rm backend ruff format .
+scripts/check.sh          # what CI runs: lint, format check, migration check, tests
+scripts/check.sh --fix    # apply lint fixes and formatting first
 ```
 
 See [`backend/tests/README.md`](backend/tests/README.md) for details. The tests use your local development database inside rolled-back transactions, so they leave no data behind. CI (`.github/workflows/backend.yml`) runs the linter, a migration round trip and the tests on every pull request that touches `backend/`.
@@ -119,12 +104,12 @@ docker compose run --rm backend alembic history    # all revisions
 2. Generate the migration:
 
 ```sh
-docker compose run --rm backend alembic revision --autogenerate -m "describe the change"
+scripts/new-migration.sh "describe the change"
 ```
 
 3. Open the new file in `backend/alembic/versions/` and **read it before applying**:
    - Look for `op.drop_table`, `op.drop_column` and other destructive operations. Autogenerate emits them for anything that exists in the database but not in the models. That is how the early `test_messages` table was dropped.
-   - Alembic can misread expression indexes such as `users_email_lower_unique` (which indexes `lower(email)`). Delete any spurious drop and create lines for it.
+   - Alembic can misread expression indexes (indexes on `lower(email)` and similar). Delete any spurious drop and create lines for them.
 4. Apply it:
 
 ```sh
@@ -147,15 +132,26 @@ Alembic only manages tables whose model is registered in `backend/app/models.py`
 
 ### Reset your local database
 
-This deletes all local data, including users, sessions and linked accounts. Use it only on a development machine.
+This deletes all local data, including users, sessions and linked accounts. Use it only on a development machine. It asks you to type `reset` first.
 
 ```sh
-docker compose down -v
-docker compose up -d
-docker compose run --rm backend alembic upgrade head
+scripts/reset-db.sh
 ```
 
+It removes the Postgres volume (Redis is kept), fills in an empty `POSTGRES_PASSWORD` via `setup.sh`, and starts everything again. Migrations re-run on start.
+
 Don't use this to work around a migration problem on data you care about. Fix the migration instead.
+
+### Change the database password
+
+Postgres only reads `POSTGRES_PASSWORD` when its volume is first created. To change it on an existing database without losing data, set the new value in `.env`, then:
+
+```sh
+docker compose exec postgres psql -U app -d appdb -c "ALTER USER app PASSWORD 'the-new-password'"
+docker compose up -d
+```
+
+Replace `the-new-password` with the value from `.env`.
 
 ## Set up a GitHub App (for repo access)
 
