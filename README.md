@@ -160,6 +160,7 @@ If Vite runs on a different port, add that origin to `TRUSTED_ORIGINS` in `.env`
 | `scripts/check.sh [--fix]` | Lint, format check, migration check, backend tests. `--fix` applies formatting first |
 | `scripts/new-migration.sh "msg"` | Generates an Alembic migration from model changes |
 | `scripts/reset-db.sh` | Deletes the local database and starts fresh. Asks you to type `reset` first |
+| `scripts/deploy.sh [commit]` | On a server: checks out a commit (default: latest `Main`), rebuilds what changed, waits until healthy. Used by Jenkins |
 
 ## Backend
 
@@ -306,6 +307,40 @@ Caddy can get a free Let's Encrypt certificate by itself, as long as it has a ho
 Certificates are kept in the `caddy-data` volume and renewed automatically. If issuance fails, the logs say why. Usually port 80 isn't reachable from the internet, or the hostname doesn't resolve to this VM.
 
 **Limits.** This is still the development setup: the backend runs with auto-reload from a bind mount and the dev image. That's fine for testing on a VM, but it isn't production-ready.
+
+## Deploying with Jenkins
+
+The `Jenkinsfile` deploys every push to `Main`. Jenkins connects to the server over SSH and runs `scripts/deploy.sh <commit>`, which:
+- checks out that exact commit
+- runs `docker compose up -d --build`, so only services whose image or config changed are rebuilt and restarted, and migrations run as part of it
+- waits until everything is healthy, failing the Jenkins build if not
+
+Unchanged images come from Docker's build cache, so a one-line backend change rebuilds just the backend.
+
+### One-time setup
+
+1. **On the server:** set up the project as in [Running on a server or VM](#running-on-a-server-or-vm). That checkout must be able to `git fetch` without a password: for a private repo, add a read-only [deploy key](https://docs.github.com/en/authentication/connecting-to-github-with-ssh/managing-deploy-keys) on GitHub. Don't edit tracked files there; `deploy.sh` refuses to deploy over hand edits.
+2. **An SSH key for Jenkins:** run `ssh-keygen -t ed25519 -f jenkins-deploy -N ""` anywhere. Append `jenkins-deploy.pub` to `~/.ssh/authorized_keys` on the server, for a user in the `docker` group.
+3. **In Jenkins:**
+   - Install the **Pipeline**, **Git**, **GitHub** and **SSH Agent** plugins.
+   - Add a credential: *SSH Username with private key*, ID `side-project-deploy-ssh`, with the server's username and the contents of `jenkins-deploy`.
+   - Under Manage Jenkins → System → Global properties, set environment variables `DEPLOY_HOST` (e.g. `ubuntu@79.72.88.229`) and `DEPLOY_DIR` (e.g. `/home/ubuntu/side-project`).
+   - Create a **Multibranch Pipeline** job pointing at the repo. It finds the `Jenkinsfile`, and only `Main` deploys.
+4. **Trigger on push:** in the GitHub repo, Settings → Webhooks → Add webhook, with payload URL `https://<your-jenkins>/github-webhook/`, content type `application/json`, and just the push event. If GitHub can't reach your Jenkins, change `githubPush()` in the `Jenkinsfile` to `pollSCM('H/5 * * * *')` instead.
+5. **Recommended:** protect `Main` (Settings → Branches) so the `backend` CI check must pass before merging. Then broken code can't reach the deploy.
+
+If Jenkins runs on the same machine as the app, the same setup works with `DEPLOY_HOST=<user>@localhost`.
+
+### Rolling back
+
+On the server, deploy any earlier commit:
+
+```sh
+git log --oneline -10 origin/Main     # find the commit
+scripts/deploy.sh <commit>
+```
+
+The next push to `Main` deploys the latest code again. Migrations aren't rolled back automatically. If the bad commit added one, see [Database migrations](#database-migrations).
 
 ## Troubleshooting
 
