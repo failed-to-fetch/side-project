@@ -16,10 +16,16 @@ async def lifespan(app: FastAPI):
     get_engine().dispose()
 
 
-app = FastAPI(lifespan=lifespan)
-app.include_router(api_router)
+# Everything lives under /api, the prefix the frontend's Caddy forwards here.
+app = FastAPI(
+    lifespan=lifespan,
+    docs_url="/api/docs",
+    redoc_url=None,
+    openapi_url="/api/openapi.json",
+)
+app.include_router(api_router, prefix="/api")
 
 
-@app.get("/")
-def root():
-    return {"message": "Backend is running"}
+@app.get("/api/health")
+def health():
+    return {"status": "ok"}

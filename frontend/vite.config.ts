@@ -6,6 +6,13 @@ import { VitePWA } from 'vite-plugin-pwa'
 
 // https://vite.dev/config/
 export default defineConfig({
+  server: {
+    // Send API calls to the running stack's Caddy, which routes /api/auth to the
+    // auth service and the rest of /api to the backend. Same origin, no CORS.
+    proxy: {
+      '/api': process.env.VITE_API_PROXY ?? 'http://localhost:3000',
+    },
+  },
   plugins: [
     react(),
     tailwindcss(),

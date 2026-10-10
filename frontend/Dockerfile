@@ -7,9 +7,6 @@ RUN npm install -g pnpm@12.10.1
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 RUN pnpm install --frozen-lockfile
 
-ARG VITE_AUTH_URL=http://localhost:3001
-ENV VITE_AUTH_URL=$VITE_AUTH_URL
-
 COPY . .
 RUN pnpm build
 

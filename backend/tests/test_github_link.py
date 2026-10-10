@@ -34,14 +34,14 @@ def fake_github(client):
 
 
 def _begin(client):
-    r = client.get("/auth/github/link", follow_redirects=False)
+    r = client.get("/api/integrations/github/link", follow_redirects=False)
     assert r.status_code == 302
     return parse_qs(urlparse(r.headers["location"]).query)
 
 
 def _finish(client, state):
     return client.get(
-        "/auth/github/callback",
+        "/api/integrations/github/callback",
         params={"code": "abc", "state": state},
         follow_redirects=False,
     )
@@ -59,13 +59,19 @@ def _connections(db, **where):
 
 
 def test_link_requires_sign_in(client, fake_github):
-    assert client.get("/auth/github/link", follow_redirects=False).status_code == 401
+    assert (
+        client.get("/api/integrations/github/link", follow_redirects=False).status_code
+        == 401
+    )
 
 
 def test_link_returns_503_when_github_not_configured(client, sign_in):
     sign_in()
     app.dependency_overrides[get_github_client] = lambda: GitHubClient("", "", "")
-    assert client.get("/auth/github/link", follow_redirects=False).status_code == 503
+    assert (
+        client.get("/api/integrations/github/link", follow_redirects=False).status_code
+        == 503
+    )
 
 
 def test_link_redirect_uses_state_and_pkce(client, sign_in, fake_github):
@@ -115,7 +121,7 @@ def test_bad_state_is_rejected(client, db, sign_in, fake_github):
     sign_in()
     _begin(client)
     assert "error=invalid_state" in _finish(client, "wrong").headers["location"]
-    assert _connections(db) == 0
+    assert _connections(db, provider_user_id="4242") == 0
 
 
 def test_state_is_single_use(client, sign_in, fake_github):
@@ -128,6 +134,6 @@ def test_state_is_single_use(client, sign_in, fake_github):
 def test_unlink_removes_connection(client, db, sign_in, fake_github):
     sign_in("ba_alice")
     _link(client)
-    assert client.delete("/auth/github").status_code == 204
+    assert client.delete("/api/integrations/github").status_code == 204
     assert _connections(db, user_id="ba_alice") == 0
-    assert client.delete("/auth/github").status_code == 404
+    assert client.delete("/api/integrations/github").status_code == 404

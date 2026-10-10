@@ -119,10 +119,12 @@ export const auth = betterAuth({
 
     database: pool,
 
-    trustedOrigins: [
-        "http://localhost:3000",
-        "http://127.0.0.1:3000",
-    ],
+    // baseURL's origin is trusted automatically. Extra origins (e.g. the Vite dev
+    // server) come from TRUSTED_ORIGINS, comma-separated.
+    trustedOrigins: (process.env.TRUSTED_ORIGINS ?? "")
+        .split(",")
+        .map((origin) => origin.trim())
+        .filter(Boolean),
 
     emailAndPassword: {
         enabled: true,

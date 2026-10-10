@@ -9,7 +9,7 @@ from app.features.integrations.github import service
 from app.features.integrations.github.client import GitHubClient, get_github_client
 
 # Connects a signed-in user's GitHub account for repository access.
-router = APIRouter(prefix="/auth/github", tags=["github"])
+router = APIRouter(prefix="/integrations/github", tags=["github"])
 
 STATE_COOKIE = "oauth_state"
 GitHub = Annotated[GitHubClient, Depends(get_github_client)]

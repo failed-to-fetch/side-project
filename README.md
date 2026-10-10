@@ -6,18 +6,29 @@ A repository analysis app. Users sign in (email and password, GitHub, GitLab or 
 
 ## How it fits together
 
-Everything runs in Docker Compose:
+Everything runs in Docker Compose. The browser only ever talks to one address, <http://localhost:3000>. Caddy (in the `frontend` container) serves the app and forwards API calls:
 
-| Service | Port | What it does |
+```
+browser ──► localhost:3000 (Caddy)
+              ├─ /api/auth/*  ──► auth      (sign-in, sessions)
+              ├─ /api/*       ──► backend   (everything else)
+              └─ anything else ──► the React app
+```
+
+Because it's all one origin, there's no CORS, and the session cookie is first-party.
+
+| Service | What it does | Direct port (this machine only) |
 |---|---|---|
-| `frontend` | <http://localhost:3000> | React app (Vite build served by Caddy) |
-| `auth` | <http://localhost:3001> | [Better Auth](https://www.better-auth.com/docs) on Node. Owns users, sign-in and sessions |
-| `backend` | <http://localhost:8000/docs> | FastAPI (Python 3.12). Repo access and analysis. Checks sessions with `auth` |
-| `postgres` | 5432 | PostgreSQL 18, shared by `auth` and `backend` (each manages only its own tables) |
-| `redis` | 6379 | Cache |
-| `auth-migrate`, `backend-migrate` | – | Apply database migrations on start, then exit |
+| `frontend` | React app built with Vite, served by Caddy, which also routes `/api` | **3000** (the only public port) |
+| `auth` | [Better Auth](https://www.better-auth.com/docs) on Node. Owns users, sign-in and sessions | 3001 |
+| `backend` | FastAPI (Python 3.12). Repo access and analysis. Checks sessions with `auth` | 8000 |
+| `postgres` | PostgreSQL 18, shared by `auth` and `backend` (each manages only its own tables) | 5432 |
+| `redis` | Cache | 6379 |
+| `auth-migrate`, `backend-migrate` | Apply database migrations on start, then exit | – |
 
-Signing in happens in the browser against `auth`, which sets a `better-auth.session_token` cookie. When the backend gets a request with that cookie, it asks `auth` who the user is and caches the answer for 60 seconds.
+The direct ports are bound to `127.0.0.1` for debugging, so other machines can't reach them.
+
+Signing in sets a `better-auth.session_token` cookie. When the backend gets a request with that cookie, it asks `auth` who the user is and caches the answer for 60 seconds.
 
 ## Prerequisites
 
@@ -49,7 +60,7 @@ Go to <https://github.com/settings/applications/new> (Settings, Developer settin
 |---|---|
 | Application name | anything, e.g. `yourname-side-project-dev` |
 | Homepage URL | `http://localhost:3000` |
-| Authorization callback URL | `http://localhost:3001/api/auth/callback/github` |
+| Authorization callback URL | `http://localhost:3000/api/auth/callback/github` |
 
 Click **Register application**, then **Generate a new client secret**. Keep the page open: you need the Client ID and the secret in the next step, and GitHub shows the secret only once.
 
@@ -86,7 +97,7 @@ docker compose ps -a
 
 `auth-migrate` and `backend-migrate` should show `Exited (0)`. Everything else should be `Up`, and `backend`, `postgres` and `redis` should be `(healthy)`.
 
-Then open <http://localhost:3000> and sign in with GitHub. The backend API docs are at <http://localhost:8000/docs>.
+Then open <http://localhost:3000> and sign in. The backend API docs are at <http://localhost:3000/api/docs>.
 
 ### 6. Run the checks
 
@@ -105,6 +116,13 @@ git pull
 scripts/setup.sh                 # adds any new .env values
 docker compose up -d --build     # rebuilds images and re-runs migrations
 ```
+
+**Update your GitHub callback URLs.** Everything is now served from port 3000 under `/api`:
+
+| Registration | New callback URL |
+|---|---|
+| OAuth App (sign-in) | `http://localhost:3000/api/auth/callback/github` (was port 3001) |
+| GitHub App (repo access), if you made one | `http://localhost:3000/api/integrations/github/callback` (was `localhost:8000/auth/github/callback`) |
 
 ## Everyday development
 
@@ -126,12 +144,13 @@ What picks up your changes:
 | Frontend code | `docker compose up -d --build frontend`, or run Vite with hot reload (below) |
 | `.env` or `docker-compose.yml` | `docker compose up -d` (running containers don't re-read them) |
 
-**Frontend with hot reload.** The `frontend` container serves a production build. For hot reload, stop it and run Vite on the same port. The auth service only accepts sign-ins from port 3000. This needs Node 24 and pnpm locally (`mise install` in `frontend/` if you use mise):
+**Frontend with hot reload.** The `frontend` container serves a production build. For hot reload, keep the stack running and start Vite alongside it. Vite forwards `/api` to the stack on port 3000, and the auth service trusts Vite's origin. This needs Node 24 and pnpm locally (`mise install` in `frontend/` if you use mise):
 
 ```sh
-docker compose stop frontend
-cd frontend && pnpm install && pnpm dev --port 3000
+cd frontend && pnpm install && pnpm dev     # then open http://localhost:5173
 ```
+
+If Vite runs on a different port, add that origin to `TRUSTED_ORIGINS` in `.env` and run `docker compose up -d`.
 
 ### Scripts
 
@@ -206,7 +225,7 @@ This is separate from the OAuth App used for sign-in. A GitHub **App** lets the 
    |---|---|
    | GitHub App name | anything unique, e.g. `yourname-side-project-dev` |
    | Homepage URL | `http://localhost:3000` |
-   | Callback URL | `http://localhost:8000/auth/github/callback` |
+   | Callback URL | `http://localhost:3000/api/integrations/github/callback` |
    | Expire user authorization tokens | ticked |
    | Webhook, Active | unticked |
    | Repository permissions | Contents: Read-only, Metadata: Read-only |
@@ -214,32 +233,61 @@ This is separate from the OAuth App used for sign-in. A GitHub **App** lets the 
 
 2. Click **Create GitHub App**. Copy the **Client ID** (starts with `Iv`, not the numeric App ID), then **Generate a new client secret**.
 3. Add both to `.env` as `GITHUB_CLIENT_ID` and `GITHUB_CLIENT_SECRET`, then run `docker compose up -d`.
-4. Sign in at <http://localhost:3000>, then open <http://localhost:8000/auth/github/link> in the same browser. You should land on `/settings?linked=github`.
+4. Sign in at <http://localhost:3000>, then open <http://localhost:3000/api/integrations/github/link> in the same browser. You should land on `/settings?linked=github`.
 
 If it fails, the redirect ends in `?error=<reason>`:
 
 | Reason | Fix |
 |---|---|
-| `github_error` | Wrong client secret, or the callback URL isn't exactly `http://localhost:8000/auth/github/callback` |
+| `github_error` | Wrong client secret, or the callback URL isn't exactly `http://localhost:3000/api/integrations/github/callback` |
 | `already_linked` | That GitHub account is linked to a different user |
 | `invalid_state`, `expired_state` | Took over 10 minutes, or the cookie was lost. Start again in the same browser |
 | `github_denied` | You cancelled on GitHub |
 
 ## API overview
 
-Sign-in, sign-out and sessions: the auth service at `http://localhost:3001/api/auth/*` ([Better Auth API](https://www.better-auth.com/docs)).
+All paths are on the public address (<http://localhost:3000> locally).
 
-Backend:
+Sign-in, sign-out and sessions: the auth service at `/api/auth/*` ([Better Auth API](https://www.better-auth.com/docs)). The frontend uses it through `authClient` in `frontend/src/lib/auth-client.ts`.
+
+Backend (interactive docs at `/api/docs`):
 
 | Endpoint | Auth | Purpose |
 |---|---|---|
-| `GET /` | none | health message |
-| `GET /users/me` | session | current user: `{id, email, name}` |
-| `GET /auth/github/link` | session | start linking GitHub for repo access |
-| `GET /auth/github/callback` | none | GitHub redirects here |
-| `DELETE /auth/github` | session | unlink GitHub (204; 404 if not linked) |
+| `GET /api/health` | none | `{"status": "ok"}` |
+| `GET /api/users/me` | session | current user: `{id, email, name}` |
+| `GET /api/integrations/github/link` | session | start linking GitHub for repo access |
+| `GET /api/integrations/github/callback` | none | GitHub redirects here |
+| `DELETE /api/integrations/github` | session | unlink GitHub (204; 404 if not linked) |
+
+From the frontend, call the backend with relative URLs such as `fetch("/api/users/me")`. The session cookie is sent automatically.
 
 Errors use `{"detail": ...}`. 401 means no valid session; 503 means the auth service is unreachable. A sign-out can take up to 60 seconds to reach the backend because of the session cache.
+
+## Running on a server or VM
+
+The same compose file runs on a Linux VM for testing. Everything is reached through one port, and only that port is exposed.
+
+1. On the VM, install Git and Docker (Engine plus the Compose plugin), clone the repo, and run `scripts/setup.sh`.
+2. In the VM's `.env`, set the address you'll open in the browser:
+   ```dotenv
+   PUBLIC_URL=http://203.0.113.10:3000      # your VM's IP or hostname
+   ```
+   To serve on port 80 instead, also set `FRONTEND_PORT=80` and drop `:3000` from `PUBLIC_URL`.
+3. **Register callback URLs for that address.** A GitHub OAuth App has only one callback URL, so create a second OAuth App for the VM with `<PUBLIC_URL>/api/auth/callback/github`, and put its ID and secret in the VM's `.env`. A GitHub App accepts several callback URLs, so you can add `<PUBLIC_URL>/api/integrations/github/callback` to your existing one.
+4. Allow the port in your cloud provider's firewall or security group (inbound TCP 3000, or 80).
+5. Start it with `scripts/setup.sh --up`.
+
+Check from **your own machine**:
+
+```sh
+curl http://203.0.113.10:3000/api/health          # {"status":"ok"}
+curl -m 5 http://203.0.113.10:8000/api/health     # must time out or be refused
+```
+
+Postgres (5432), Redis (6379), the backend (8000) and auth (3001) are bound to `127.0.0.1` on the VM and must not be reachable from outside. This matters because Docker's published ports bypass `ufw` on Linux, so a host firewall alone doesn't protect them.
+
+**Limits.** This is the development setup: the backend runs with auto-reload from a bind mount, and traffic is plain HTTP, so passwords cross the network unencrypted. Use it for testing, with test accounts. For HTTPS, put the VM behind a TLS-terminating proxy or load balancer, then set `PUBLIC_URL=https://...` and `COOKIE_SECURE=true`.
 
 ## Troubleshooting
 
@@ -255,7 +303,10 @@ Start with `docker compose ps -a` and `docker compose logs <service> --tail 60`.
 | `{"detail":"Authentication service unavailable."}` | `auth` is down: `docker compose logs auth --tail 60` |
 | `{"detail":"GitHub is not configured."}` | The optional repo-access GitHub App isn't set up. See [GitHub App for repo access](#github-app-for-repo-access-optional) |
 | `relation "..." does not exist` | Migrations didn't run: `docker compose up -d`, then check `backend-migrate` |
-| `Bind for 0.0.0.0:3000 failed: port is already allocated` | Something else uses that port (often `pnpm dev`). Stop it, or `docker compose stop frontend` |
+| `Bind for 0.0.0.0:3000 failed: port is already allocated` | Something else uses that port. Stop it, or set `FRONTEND_PORT` (and `PUBLIC_URL` to match) in `.env` |
+| Sign-in fails with 403 `Invalid origin` | The page's origin isn't trusted: it must be `PUBLIC_URL` or listed in `TRUSTED_ORIGINS` |
+| GitHub says `redirect_uri is not associated with this application` | The callback URL in your GitHub settings doesn't match `PUBLIC_URL` (see [Upgrading](#upgrading-from-an-older-checkout)) |
+| `502 Bad Gateway` on `/api/...` | Caddy can't reach `auth` or `backend`: check `docker compose ps -a` and their logs |
 | `ModuleNotFoundError` in the backend | The image is older than `uv.lock`: `docker compose build backend && docker compose up -d` |
 | A script fails with `$'\r': command not found` | It was checked out with Windows line endings. Run `git rm --cached -r -q . && git reset --hard` (commit your work first) |
 | A `.env` change has no effect | Running containers don't re-read it: `docker compose up -d` |
@@ -267,10 +318,11 @@ Start with `docker compose ps -a` and `docker compose logs <service> --tail 60`.
 - Backend checks Better Auth sessions
 - Linking GitHub for repo access, with tokens encrypted at rest
 - Backend tests, lint and CI
+- One origin for frontend, auth and backend (Caddy), with a Vite dev proxy
 
 **Not built yet**
-- Serving frontend, auth and backend from one origin, so the browser can call the backend without CORS
 - Most of the frontend
+- HTTPS in the bundled Caddy config (see [Running on a server or VM](#running-on-a-server-or-vm))
 - GitHub repo listing and installation tokens
 - Repo cloning and analysis jobs
 - Password reset, email verification, login rate limiting

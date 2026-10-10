@@ -1,6 +1,5 @@
 import { createAuthClient } from "better-auth/client";
 
-export const authClient = createAuthClient({
-  // Set at build time (frontend/Dockerfile ARG, or frontend/.env for `pnpm dev`).
-  baseURL: import.meta.env.VITE_AUTH_URL ?? "http://localhost:3001",
-});
+// No baseURL: the auth service is reached on this origin at /api/auth, through
+// Caddy in Docker or the Vite dev proxy.
+export const authClient = createAuthClient();
