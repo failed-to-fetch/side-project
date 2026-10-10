@@ -10,6 +10,31 @@ const requiredEnv = (name: string): string => {
     return value;
 };
 
+// The public address (PUBLIC_URL in compose). It must be a bare origin: if it has
+// a path, Better Auth uses that path as its route prefix and every /api/auth/*
+// request returns 404.
+const publicOrigin = (() => {
+    const raw = requiredEnv("BETTER_AUTH_URL");
+    let url: URL;
+    try {
+        url = new URL(raw);
+    } catch {
+        url = new URL("invalid:");
+    }
+    if (url.protocol !== "http:" && url.protocol !== "https:") {
+        throw new Error(
+            `BETTER_AUTH_URL (PUBLIC_URL) must start with http:// or https://, got "${raw}"`
+        );
+    }
+    if (url.pathname !== "/" || url.search || url.hash) {
+        throw new Error(
+            `BETTER_AUTH_URL (PUBLIC_URL) must be just scheme://host[:port] with no path, ` +
+                `got "${raw}". Use "${url.origin}".`
+        );
+    }
+    return url.origin;
+})();
+
 const pool = new Pool({
     connectionString: requiredEnv("DATABASE_URL"),
 });
@@ -113,7 +138,7 @@ if (bitbucketClientId && bitbucketClientSecret) {
 }
 
 export const auth = betterAuth({
-    baseURL: requiredEnv("BETTER_AUTH_URL"),
+    baseURL: publicOrigin,
     basePath: "/api/auth",
     secret: requiredEnv("BETTER_AUTH_SECRET"),
 

@@ -1,4 +1,5 @@
 from functools import lru_cache
+from urllib.parse import urlsplit
 
 from cryptography.fernet import Fernet
 from pydantic import SecretStr, field_validator
@@ -44,8 +45,15 @@ class Settings(BaseSettings):
 
     @field_validator("frontend_url", "auth_service_url")
     @classmethod
-    def _strip_trailing_slash(cls, v: str) -> str:
-        return v.rstrip("/")
+    def _bare_origin(cls, v: str) -> str:
+        # PUBLIC_URL in compose. Redirects and the GitHub callback append paths to
+        # it, so it must be just scheme://host[:port].
+        url = urlsplit(v.strip())
+        if url.scheme not in ("http", "https") or not url.netloc:
+            raise ValueError("must start with http:// or https://")
+        if url.path.rstrip("/") or url.query or url.fragment:
+            raise ValueError(f"must have no path, e.g. {url.scheme}://{url.netloc}")
+        return f"{url.scheme}://{url.netloc}"
 
 
 @lru_cache
