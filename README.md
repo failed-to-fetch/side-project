@@ -1,21 +1,22 @@
 # Name to be Decided
 
-A repository analysis app. Users sign in (email and password, or GitHub), and the backend will pull in repositories and analyse their history.
+A repository analysis app. Users sign in (email and password, GitHub, GitLab or Bitbucket), connect a code host, and the backend will pull in repositories and analyse their history.
 
-**Current status:** the backend has users, sessions and GitHub sign-in. Repo access, analysis jobs and the frontend are not built yet (see [Status](#status)).
+**Current status:** sign-in works through the auth service, and the backend can link a GitHub account for repo access. Repo listing, analysis jobs and most of the frontend are not built yet (see [Status](#status)).
 
 ## Stack
 
-- **Backend:** Python 3.12, FastAPI, SQLAlchemy 2.x, Alembic, Psycopg 3
-- **Database:** PostgreSQL 18
-- **Cache and sessions:** Redis
+- **Auth service (`services/auth`):** Better Auth on Node. Owns users, sign-in and sessions
+- **Backend:** Python 3.12, FastAPI, SQLAlchemy 2.x, Alembic, Psycopg 3. Checks Better Auth sessions; owns repo access and analysis
+- **Database:** PostgreSQL 18, shared by both services
+- **Cache:** Redis
 - **Runtime:** Docker Compose
 
 ## Prerequisites
 
 - Git
 - Docker with Compose v2 (`docker compose`, not the older `docker-compose`). Docker Desktop on Windows and macOS, or Docker Engine plus the Compose plugin on Linux.
-- A GitHub account (only needed to try GitHub sign-in)
+- A GitHub account (only needed to try GitHub sign-in or repo linking)
 
 A local Python virtual environment is optional. It only helps your editor resolve imports. Everything runs in Docker.
 
@@ -70,7 +71,7 @@ curl http://localhost:8000/
 docker compose exec postgres psql -U app -d appdb -c "\dt"
 ```
 
-The first should return `{"message":"Backend is running"}`. The second should list `alembic_version`, `oauth_identities` and `users`. Interactive API docs are at <http://localhost:8000/docs>.
+The first should return `{"message":"Backend is running"}`. The second should list `alembic_version` and `provider_connections` (the backend's tables) alongside Better Auth's `user`, `session`, `account` and `verification`. Interactive API docs are at <http://localhost:8000/docs>.
 
 ### 7. Run the tests
 
@@ -129,11 +130,13 @@ The migration file must appear under `backend/alembic/versions/` on your machine
 docker compose run --rm backend alembic downgrade -1
 ```
 
-Downgrades can destroy data (for example, dropping a table). The downgrade of the "nullable password hash" change also fails if GitHub-only users exist, since they have no password hash. Take a backup first if the data matters.
+Downgrades can destroy data (for example, dropping a table). Downgrading past "replace users with provider connections" deletes every linked GitHub account. Take a backup first if the data matters.
+
+Alembic only manages tables that have a model in `backend/app/models.py`. Better Auth's tables are managed by its own migrations (`auth-migrate` in compose) and are ignored by autogenerate.
 
 ### Reset your local database
 
-This deletes all local data, including users and sessions' database rows. Use it only on a development machine.
+This deletes all local data, including users, sessions and linked accounts. Use it only on a development machine.
 
 ```sh
 docker compose down -v
@@ -143,9 +146,14 @@ docker compose run --rm backend alembic upgrade head
 
 Don't use this to work around a migration problem on data you care about. Fix the migration instead.
 
-## Set up a GitHub App (for GitHub sign-in)
+## Set up a GitHub App (for repo access)
 
-GitHub sign-in uses a GitHub App, not an OAuth App. Each developer registers their own App, because the callback URL points at `localhost`. Never share client secrets between developers.
+There are two separate GitHub registrations:
+
+- **Sign-in** uses a GitHub OAuth App (`GITHUB_LOGIN_CLIENT_ID` / `GITHUB_LOGIN_CLIENT_SECRET`), handled by the auth service.
+- **Repo access** uses a GitHub App (`GITHUB_CLIENT_ID` / `GITHUB_CLIENT_SECRET`), handled by the backend. This section covers this one.
+
+Each developer registers their own App, because the callback URL points at `localhost`. Never share client secrets between developers.
 
 ### 1. Register the App
 
@@ -159,12 +167,10 @@ Go to <https://github.com/settings/apps/new> (GitHub profile picture, then Setti
 | Expire user authorization tokens | ticked |
 | Webhook, Active | unticked (not needed for local development) |
 | Repository permissions | Contents: Read-only, Metadata: Read-only |
-| Account permissions | **Email addresses: Read-only** |
+| Account permissions | none needed |
 | Where can this GitHub App be installed | Only on this account |
 
 Click **Create GitHub App**.
-
-The Email addresses permission is required. Without it, sign-in fails with `no_verified_email`.
 
 ### 2. Copy the credentials
 
@@ -186,63 +192,48 @@ You do not need the private key (`.pem`) or the App ID yet. They will be needed 
 
 ```sh
 docker compose up -d backend
-docker compose exec backend python -c "import os; print(bool(os.getenv('GITHUB_CLIENT_ID')), bool(os.getenv('GITHUB_CLIENT_SECRET')))"
+docker compose exec backend python -c "from app.core.config import get_settings; print(get_settings().github_configured)"
 ```
 
-This must print `True True`.
+This must print `True`.
 
-### 4. Try signing in
+### 4. Try linking
 
-Open <http://localhost:8000/auth/github/login> in your browser and authorize the App. You will be redirected to `http://localhost:3000/`. Until a frontend runs on that port, the browser shows a connection error. That is expected. The session cookie is already set.
+Sign in through the frontend at <http://localhost:3000> first. Then open <http://localhost:8000/auth/github/link> in the same browser and authorize the App. You will be redirected to `http://localhost:3000/settings?linked=github`.
 
-Then open <http://localhost:8000/users/me>. You should see your GitHub email as JSON.
+### Linking errors
 
-### Sign-in errors
-
-If sign-in fails, the redirect goes to `http://localhost:3000/login?error=<reason>`:
+If linking fails, the redirect goes to `http://localhost:3000/settings?error=<reason>`:
 
 | Reason | Meaning and fix |
 |---|---|
 | `github_error` | Wrong client secret, or the App's callback URL doesn't exactly match `http://localhost:8000/auth/github/callback` |
-| `no_verified_email` | The App lacks the Email addresses permission, or your account has no verified primary email. After adding the permission, revoke the App at <https://github.com/settings/apps/authorizations> and sign in again |
-| `account_exists` | A password account with the same email exists. Log in with the password, then link GitHub from `/auth/github/link` |
-| `invalid_state`, `expired_state` | The flow took over 10 minutes or the cookie was lost. Start again from `/auth/github/login` in the same browser |
+| `already_linked` | That GitHub account is already linked to a different user |
+| `invalid_state`, `expired_state` | The flow took over 10 minutes or the cookie was lost. Start again from `/auth/github/link` in the same browser |
 | `github_denied` | You cancelled, or GitHub returned an error |
-
-### Remove the test account
-
-```sh
-docker compose exec postgres psql -U app -d appdb -c "DELETE FROM users WHERE id IN (SELECT user_id FROM oauth_identities);"
-```
-
-This deletes every user that has a linked identity, so use it only on a development database.
 
 ## API overview
 
-Sessions use a random token stored (hashed) in Redis and sent as an HttpOnly, SameSite=Lax cookie named `session_id`. Requests from a browser app must include credentials.
+Sign-in, sign-out and sessions are handled by the auth service at `http://localhost:3001/api/auth/*` (see the [Better Auth docs](https://www.better-auth.com/docs)). The backend reads the `better-auth.session_token` cookie and asks the auth service who it belongs to, caching the answer in Redis for 60 seconds (`AUTH_SESSION_CACHE_SECONDS`). So a sign-out can take up to a minute to reach the backend.
 
 | Endpoint | Auth | Purpose |
 |---|---|---|
 | `GET /` | none | health message |
-| `POST /users` | none | register with `{email, password}` (201, 409 duplicate, 422 invalid) |
-| `POST /auth/login` | none | log in with email and password, sets the cookie |
-| `POST /auth/logout` | cookie | end the session (204) |
-| `GET /users/me` | cookie | current user |
-| `GET /users/{id}` | cookie | own record only (403 otherwise) |
-| `GET /auth/github/login` | none | start GitHub sign-in |
+| `GET /users/me` | session | current user, `{id, email, name}` from Better Auth |
+| `GET /auth/github/link` | session | start linking GitHub for repo access |
 | `GET /auth/github/callback` | none | GitHub redirects here |
-| `GET /auth/github/link` | cookie | link GitHub to the logged-in user |
-| `DELETE /auth/github` | cookie | unlink GitHub (409 if it is the only login method) |
+| `DELETE /auth/github` | session | unlink GitHub (204, 404 if not linked) |
 
-A user object is `{id, email, created_at, updated_at}`. Errors use `{"detail": ...}`.
+Errors use `{"detail": ...}`. A 503 means the auth service couldn't be reached.
 
 ## Troubleshooting
 
 | Symptom | Fix |
 |---|---|
 | `ERR_EMPTY_RESPONSE` or connection reset on port 8000 | The backend crashed on startup. Run `docker compose logs backend --tail 60` and read the last traceback |
-| `ValueError: Fernet key must be 32 url-safe base64-encoded bytes` | `TOKEN_ENCRYPTION_KEY` is missing, empty or malformed in `.env`. Fix it, then `docker compose up -d backend` |
-| `{"detail":"GitHub sign-in is not configured."}` | `GITHUB_CLIENT_ID` or `GITHUB_CLIENT_SECRET` is missing in `.env` or not restarted. See step 3 of the GitHub App setup |
+| `validation error for Settings` at startup | A required variable is missing or malformed in `.env` (the error names it). Fix it, then `docker compose up -d backend` |
+| `{"detail":"GitHub is not configured."}` | `GITHUB_CLIENT_ID` or `GITHUB_CLIENT_SECRET` is missing in `.env` or not restarted. See step 3 of the GitHub App setup |
+| `{"detail":"Authentication service unavailable."}` | The `auth` container is down: `docker compose logs auth --tail 60` |
 | `relation "..." does not exist` | Migrations not applied: `docker compose run --rm backend alembic upgrade head` |
 | `ModuleNotFoundError` for a package | The image is stale: `docker compose build backend`, then `docker compose up -d backend` |
 | Environment change has no effect | Auto-reload does not re-read environment variables: `docker compose up -d backend` |
@@ -250,13 +241,14 @@ A user object is `{id, email, created_at, updated_at}`. Errors use `{"detail": .
 ## Status
 
 **Built**
-- Registration, login, logout, sessions in Redis
-- GitHub sign-in, linking and unlinking, with encrypted token storage
+- Sign-in with email and password, GitHub, GitLab and Bitbucket (auth service)
+- Backend checks Better Auth sessions
+- Linking and unlinking GitHub for repo access, with encrypted token storage
 - Test suite
 
 **Not built yet**
-- CORS configuration for a separate frontend origin (needed before a browser app on `localhost:3000` can call the API)
-- The frontend
+- Serving frontend, auth and backend from one origin (so the browser can call the backend without CORS)
+- Most of the frontend
 - GitHub repo access (App installation, repo listing, installation tokens)
 - Repo cloning and analysis jobs
 - Password reset, email verification, login rate limiting

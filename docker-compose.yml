@@ -18,6 +18,7 @@ services:
       GITHUB_CLIENT_SECRET: ${GITHUB_CLIENT_SECRET}
       GITHUB_REDIRECT_URI: http://localhost:8000/auth/github/callback
       FRONTEND_URL: http://localhost:3000
+      AUTH_SERVICE_URL: http://auth:3001
     healthcheck:
       # The python image has no curl or pg_isready, so probe the API with the stdlib.
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/', timeout=3)"]
@@ -29,9 +30,11 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+      auth:
+        condition: service_started
     networks:
       - app-network
-  
+
   frontend:
     build:
       context: ./frontend

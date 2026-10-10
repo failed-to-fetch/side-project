@@ -81,13 +81,3 @@ def fetch_profile(token: str) -> dict:
     r = httpx.get(f"{API_URL}/user", headers=_headers(token), timeout=10)
     r.raise_for_status()
     return r.json()
-
-
-def fetch_verified_primary_email(token: str) -> str | None:
-    r = httpx.get(f"{API_URL}/user/emails", headers=_headers(token), timeout=10)
-    if r.status_code != 200:
-        return None
-    for item in r.json():
-        if item.get("primary") and item.get("verified"):
-            return item["email"]
-    return None

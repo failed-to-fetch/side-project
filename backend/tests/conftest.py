@@ -3,6 +3,8 @@ import redis as redis_lib
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 
+from app import auth
+from app.auth import SESSION_COOKIES, AuthUser
 from app.core.config import get_settings
 from app.core.db import get_db, get_engine
 from app.core.redis_client import get_redis
@@ -57,3 +59,23 @@ def client(db, redis_client):
     with TestClient(app) as c:
         yield c
     app.dependency_overrides.clear()
+
+
+@pytest.fixture
+def sign_in(client, monkeypatch):
+    """Fake a Better Auth session: sets the session cookie on the client and
+    answers the backend's get-session lookup for it. Returns the AuthUser."""
+    users: dict[str, AuthUser] = {}
+
+    def fake_fetch(cookie_header: str) -> AuthUser | None:
+        return users.get(cookie_header.split("=", 1)[1])
+
+    monkeypatch.setattr(auth, "fetch_session_user", fake_fetch)
+
+    def _sign_in(user_id: str = "ba_alice", email: str = "alice@example.com") -> AuthUser:
+        token = f"token-{user_id}"
+        users[token] = AuthUser(id=user_id, email=email)
+        client.cookies.set(SESSION_COOKIES[0], token)
+        return users[token]
+
+    return _sign_in

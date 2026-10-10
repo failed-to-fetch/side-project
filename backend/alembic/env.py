@@ -3,8 +3,8 @@ import os
 from alembic import context
 from sqlalchemy import create_engine, pool
 
+import app.models  # noqa: F401  (registers every model on Base.metadata)
 from app.core.db import Base
-from app.models import User
 
 target_metadata = Base.metadata
 
