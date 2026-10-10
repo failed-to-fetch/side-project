@@ -1,12 +1,17 @@
-// Deploys Main to the server on every push. Use with a Multibranch Pipeline job
-// (or a Pipeline job for Main only). See "Deploying with Jenkins" in README.md.
+// Deploys Main to the server on every push. See "Deploying with Jenkins" in
+// README.md. Pushes trigger the job through the job's own configuration (the
+// branch source webhook in a Multibranch Pipeline), not from this file.
 pipeline {
     agent any
 
-    triggers {
-        // Needs the GitHub plugin and a webhook on the repo. If Jenkins isn't
-        // reachable from the internet, use polling instead: pollSCM('H/5 * * * *')
-        githubPush()
+    parameters {
+        string(
+            name: 'DEPLOY_REF',
+            defaultValue: '',
+            trim: true,
+            description: 'Manual runs: a branch name or commit to deploy instead of Main. ' +
+                         'Leave empty to deploy the commit this build checked out.'
+        )
     }
 
     options {
@@ -18,20 +23,46 @@ pipeline {
     environment {
         // Set these as global env vars in Jenkins (Manage Jenkins > System),
         // or replace the defaults here.
-        DEPLOY_HOST = "${env.DEPLOY_HOST ?: 'ubuntu@79.72.88.229'}"
+        //   DEPLOY_HOST empty: deploy on the Jenkins machine itself
+        //   DEPLOY_HOST=user@host: deploy on another machine over SSH
+        //   DEPLOY_DIR: the app's checkout on the target (where .env lives)
+        DEPLOY_HOST = "${env.DEPLOY_HOST ?: ''}"
         DEPLOY_DIR  = "${env.DEPLOY_DIR ?: '/home/ubuntu/side-project'}"
     }
 
     stages {
         stage('Deploy') {
-            when { branch 'Main' }
+            // Runs for Main (BRANCH_NAME in Multibranch jobs, GIT_BRANCH in plain
+            // Pipeline jobs), or for any build where DEPLOY_REF was given.
+            when {
+                anyOf {
+                    branch 'Main'
+                    expression { env.GIT_BRANCH == 'origin/Main' }
+                    expression { return params.DEPLOY_REF ? true : false }
+                }
+            }
             steps {
-                // SSH private key stored in Jenkins credentials with this ID.
-                sshagent(credentials: ['side-project-deploy-ssh']) {
-                    sh '''
-                        ssh -o StrictHostKeyChecking=accept-new "$DEPLOY_HOST" \
-                            "cd '$DEPLOY_DIR' && scripts/deploy.sh '$GIT_COMMIT'"
-                    '''
+                script {
+                    def ref = params.DEPLOY_REF ?: env.GIT_COMMIT
+                    // The ref ends up in a shell command on the target, so allow
+                    // only characters that can appear in branch names and SHAs.
+                    if (!(ref ==~ /[A-Za-z0-9._\/-]+/)) {
+                        error "DEPLOY_REF '${ref}' contains characters that aren't allowed in a branch name."
+                    }
+                    currentBuild.description = "Deploy ${ref}"
+                    withEnv(["TARGET_REF=${ref}"]) {
+                        if (env.DEPLOY_HOST) {
+                            // SSH private key stored in Jenkins credentials with this ID.
+                            sshagent(credentials: ['side-project-deploy-ssh']) {
+                                sh '''
+                                    ssh -o StrictHostKeyChecking=accept-new "$DEPLOY_HOST" \
+                                        "cd '$DEPLOY_DIR' && scripts/deploy.sh '$TARGET_REF'"
+                                '''
+                            }
+                        } else {
+                            sh 'cd "$DEPLOY_DIR" && scripts/deploy.sh "$TARGET_REF"'
+                        }
+                    }
                 }
             }
         }

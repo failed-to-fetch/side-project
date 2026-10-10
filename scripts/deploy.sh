@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Deploy a commit on this machine (run on the server, e.g. by Jenkins over SSH).
 #   scripts/deploy.sh             deploy the latest origin/Main
+#   scripts/deploy.sh <branch>    deploy the latest commit of a branch on GitHub
 #   scripts/deploy.sh <commit>    deploy a specific commit (also how to roll back)
 #
 # Only services whose image or config changed are rebuilt and restarted: unchanged
@@ -22,9 +23,12 @@ if [[ -n $(git status --porcelain --untracked-files=no) ]]; then
   exit 1
 fi
 
-git fetch --quiet origin
-target=$(git rev-parse --quiet --verify "$ref^{commit}") || {
-  echo "Error: '$ref' isn't a commit or branch in this repo (after fetching origin)." >&2
+git fetch --quiet --prune origin
+# Branch names resolve to GitHub's copy (origin/<name>) first, so a stale local
+# branch of the same name is never deployed by mistake.
+target=$(git rev-parse --quiet --verify "origin/$ref^{commit}" ||
+         git rev-parse --quiet --verify "$ref^{commit}") || {
+  echo "Error: '$ref' isn't a branch on origin or a commit in this repo." >&2
   exit 1
 }
 before=$(git rev-parse HEAD)

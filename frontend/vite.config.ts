@@ -1,16 +1,34 @@
 import path from 'node:path'
 import tailwindcss from '@tailwindcss/vite'
 import react from '@vitejs/plugin-react'
-import { defineConfig } from 'vite'
+import { defineConfig, loadEnv } from 'vite'
 import { VitePWA } from 'vite-plugin-pwa'
+
+// Where `pnpm dev` sends /api: the local stack by default, or a remote one,
+// e.g. VITE_API_PROXY=https://79-72-88-229.sslip.io in frontend/.env.local.
+// Read from the shell or frontend/.env*.local; the proxy only exists in dev.
+const apiTarget =
+  loadEnv('development', process.cwd(), '').VITE_API_PROXY ||
+  'http://localhost:3000'
 
 // https://vite.dev/config/
 export default defineConfig({
   server: {
-    // Send API calls to the running stack's Caddy, which routes /api/auth to the
-    // auth service and the rest of /api to the backend. Same origin, no CORS.
+    // The target's Caddy routes /api/auth to the auth service and the rest of
+    // /api to the backend. To the browser it's all this origin, so no CORS.
     proxy: {
-      '/api': process.env.VITE_API_PROXY ?? 'http://localhost:3000',
+      '/api': {
+        target: apiTarget,
+        // Send the target's own Host header: a Caddy serving HTTPS for a
+        // hostname only answers requests addressed to that hostname.
+        changeOrigin: true,
+        configure: (proxy) => {
+          console.log(`  [api proxy] /api -> ${apiTarget}`)
+          proxy.on('error', (err) =>
+            console.error(`[api proxy] ${apiTarget}: ${err.message}`),
+          )
+        },
+      },
     },
   },
   plugins: [

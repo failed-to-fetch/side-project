@@ -152,6 +152,19 @@ cd frontend && pnpm install && pnpm dev     # then open http://localhost:5173
 
 If Vite runs on a different port, add that origin to `TRUSTED_ORIGINS` in `.env` and run `docker compose up -d`.
 
+**Frontend only, against a deployed server.** No Docker needed: Vite can forward `/api` to a server that's already running, such as the test VM. Create `frontend/.env.local` (git-ignored; see `frontend/.env.example`):
+
+```dotenv
+VITE_API_PROXY=https://79-72-88-229.sslip.io
+```
+
+Then `pnpm dev` and open <http://localhost:5173>. The terminal shows `[api proxy] /api -> https://...` so you can see which server you're using. Things to know:
+
+- **You're using that server's real data.** Accounts and anything you create are on the shared server, not your machine.
+- The server must trust `http://localhost:5173`. It does by default. A server that overrides `TRUSTED_ORIGINS` must include it, or sign-in fails with 403 `Invalid origin`.
+- Against an HTTPS server, the session cookie is secure-only. Chrome, Edge and Firefox accept it on `http://localhost`; Safari may not, so use one of those.
+- Email sign-in works. Flows that leave the site and come back (GitHub sign-in, GitHub linking) return to the server's own address, not to `localhost:5173`.
+
 ### Scripts
 
 | Script | What it does |
@@ -160,7 +173,7 @@ If Vite runs on a different port, add that origin to `TRUSTED_ORIGINS` in `.env`
 | `scripts/check.sh [--fix]` | Lint, format check, migration check, backend tests. `--fix` applies formatting first |
 | `scripts/new-migration.sh "msg"` | Generates an Alembic migration from model changes |
 | `scripts/reset-db.sh` | Deletes the local database and starts fresh. Asks you to type `reset` first |
-| `scripts/deploy.sh [commit]` | On a server: checks out a commit (default: latest `Main`), rebuilds what changed, waits until healthy. Used by Jenkins |
+| `scripts/deploy.sh [branch or commit]` | On a server: checks out a branch or commit (default: latest `Main`), rebuilds what changed, waits until healthy. Used by Jenkins |
 
 ## Backend
 
@@ -322,14 +335,35 @@ Unchanged images come from Docker's build cache, so a one-line backend change re
 1. **On the server:** set up the project as in [Running on a server or VM](#running-on-a-server-or-vm). That checkout must be able to `git fetch` without a password: for a private repo, add a read-only [deploy key](https://docs.github.com/en/authentication/connecting-to-github-with-ssh/managing-deploy-keys) on GitHub. Don't edit tracked files there; `deploy.sh` refuses to deploy over hand edits.
 2. **An SSH key for Jenkins:** run `ssh-keygen -t ed25519 -f jenkins-deploy -N ""` anywhere. Append `jenkins-deploy.pub` to `~/.ssh/authorized_keys` on the server, for a user in the `docker` group.
 3. **In Jenkins:**
-   - Install the **Pipeline**, **Git**, **GitHub** and **SSH Agent** plugins.
-   - Add a credential: *SSH Username with private key*, ID `side-project-deploy-ssh`, with the server's username and the contents of `jenkins-deploy`.
-   - Under Manage Jenkins → System → Global properties, set environment variables `DEPLOY_HOST` (e.g. `ubuntu@79.72.88.229`) and `DEPLOY_DIR` (e.g. `/home/ubuntu/side-project`).
-   - Create a **Multibranch Pipeline** job pointing at the repo. It finds the `Jenkinsfile`, and only `Main` deploys.
-4. **Trigger on push:** in the GitHub repo, Settings → Webhooks → Add webhook, with payload URL `https://<your-jenkins>/github-webhook/`, content type `application/json`, and just the push event. If GitHub can't reach your Jenkins, change `githubPush()` in the `Jenkinsfile` to `pollSCM('H/5 * * * *')` instead.
+   - Install the **Pipeline**, **Git**, **GitHub Branch Source** and **SSH Agent** plugins.
+   - Add two credentials:
+     - *SSH Username with private key*, ID `side-project-deploy-ssh`, with the server's username and the contents of `jenkins-deploy`.
+     - *Username with password*, ID `github-pat`, with your GitHub username and a fine-grained token that has read-only Contents and Metadata on this repo.
+   - Under Manage Jenkins → System, set **Jenkins URL** to the address GitHub will use. Under Global properties, set environment variables `DEPLOY_HOST` (e.g. `ubuntu@79.72.88.229`) and `DEPLOY_DIR` (e.g. `/home/ubuntu/side-project`).
+   - Create a **Multibranch Pipeline** job with a **GitHub** branch source for this repo, credentials `github-pat`, and a "Filter by name" behaviour that includes only `Main`.
+4. **Trigger on push:** in the GitHub repo, Settings → Webhooks → Add webhook, with payload URL `https://<your-jenkins>/github-webhook/` (keep the trailing slash), content type `application/json`, and just the push event. If GitHub can't reach your Jenkins, set the job's "Scan Multibranch Pipeline Triggers" to run every 5 minutes instead.
 5. **Recommended:** protect `Main` (Settings → Branches) so the `backend` CI check must pass before merging. Then broken code can't reach the deploy.
 
-If Jenkins runs on the same machine as the app, the same setup works with `DEPLOY_HOST=<user>@localhost`.
+**If Jenkins runs on the same machine as the app:**
+- **Jenkins in a Docker container** (the usual case): inside the container, `localhost` is the container itself. Add this to the Jenkins service in its compose file and recreate it:
+  ```yaml
+  extra_hosts:
+    - "host.docker.internal:host-gateway"
+  ```
+  Then set `DEPLOY_HOST=<user>@host.docker.internal`. The Jenkins image needs an SSH client. Check with `docker exec <jenkins-container> which ssh`, and if it's missing, add `openssh-client` in the Jenkins Dockerfile.
+- **Jenkins installed directly on the VM:** set `DEPLOY_HOST=<user>@localhost`. Or leave `DEPLOY_HOST` empty to run `deploy.sh` without SSH, in which case the `jenkins` user must be in the `docker` group and own the checkout in `DEPLOY_DIR`.
+
+**A plain Pipeline job also works** instead of a Multibranch one. Choose *Pipeline script from SCM*, Git, this repo, branch `*/Main`, script path `Jenkinsfile`, and under Triggers tick *GitHub hook trigger for GITScm polling*. The webhook from step 4 triggers it.
+
+### Deploying a branch
+
+Open the job → **Build with Parameters** and set `DEPLOY_REF` to a branch name (or commit). That branch replaces whatever is deployed until the next push to `Main` puts `Main` back. The first build after adding the Jenkinsfile registers the parameter; until then the button just says *Build Now*.
+
+**Migrations don't switch back on their own.** If the branch adds a migration, the database moves ahead of `Main`, and the next `Main` deploy fails with `Can't locate revision`. Before switching back, while the branch is still deployed, downgrade on the server:
+
+```sh
+docker compose run --rm backend alembic downgrade <Main's head revision>
+```
 
 ### Rolling back
 
