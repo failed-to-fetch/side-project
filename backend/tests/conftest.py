@@ -1,13 +1,12 @@
 import pytest
+import redis as redis_lib
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 
-from src.config import get_settings
-from src.database import get_db, get_engine
-from src.main import app
-
-import redis as redis_lib
-from src.redis_client import get_redis
+from app.core.config import get_settings
+from app.core.db import get_db, get_engine
+from app.core.redis_client import get_redis
+from app.main import app
 
 
 @pytest.fixture

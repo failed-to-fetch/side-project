@@ -3,8 +3,8 @@ from urllib.parse import parse_qs, urlparse
 import pytest
 from sqlalchemy import func, select
 
-from src import github_oauth
-from src.models import OAuthIdentity, User
+from app import github_oauth
+from app.models import OAuthIdentity, User
 
 PASSWORD = "correct-horse-battery"
 

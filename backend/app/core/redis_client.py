@@ -2,7 +2,7 @@ from functools import lru_cache
 
 import redis
 
-from src.config import get_settings
+from app.core.config import get_settings
 
 
 @lru_cache

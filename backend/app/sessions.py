@@ -4,7 +4,7 @@ import secrets
 import redis
 from fastapi import Response
 
-from src.config import get_settings
+from app.core.config import get_settings
 
 COOKIE_NAME = "session_id"
 SESSION_TTL_SECONDS = 60 * 60 * 24 * 7  # 7 days

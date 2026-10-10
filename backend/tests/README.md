@@ -20,7 +20,7 @@ Rebuild again whenever `requirements.txt` changes. Code and test changes do not 
 docker compose run --rm backend python -m pytest -q
 ```
 
-Use `python -m pytest` rather than bare `pytest`. It puts `/app` on the import path so `from src.main import app` works. Compose starts Postgres and Redis automatically (`depends_on`).
+Use `python -m pytest` rather than bare `pytest`. It puts `/app` on the import path so `from app.main import app` works. Compose starts Postgres and Redis automatically (`depends_on`).
 
 Expected result: all tests pass (14 at the time of writing).
 
@@ -68,7 +68,7 @@ The tests use the same database as development, so don't point them at data you 
 | Symptom | Fix |
 |---|---|
 | `ModuleNotFoundError: pytest`, `httpx`, `pwdlib`, or `email_validator` | Image is out of date: `docker compose build backend` |
-| `ModuleNotFoundError: src` | Run with `python -m pytest` from the project root, not bare `pytest` |
+| `ModuleNotFoundError: app` | Run with `python -m pytest` from the project root, not bare `pytest` |
 | `No module named 'psycopg2'` | Use `postgresql+psycopg://...` as `DATABASE_URL` in `docker-compose.yml` |
 | `no tests ran` | Test files must live in `backend/tests/` and be named `test_*.py` |
 | `KeyError: 'DATABASE_URL'` or `'REDIS_URL'` | Run through `docker compose run`, which supplies the environment variables |

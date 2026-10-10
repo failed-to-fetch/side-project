@@ -2,7 +2,7 @@ from functools import lru_cache
 
 from cryptography.fernet import Fernet
 
-from src.config import get_settings
+from app.core.config import get_settings
 
 
 @lru_cache

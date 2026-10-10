@@ -7,7 +7,7 @@ from urllib.parse import urlencode
 
 import httpx
 
-from src.config import get_settings
+from app.core.config import get_settings
 
 AUTHORIZE_URL = "https://github.com/login/oauth/authorize"
 TOKEN_URL = "https://github.com/login/oauth/access_token"

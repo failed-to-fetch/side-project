@@ -1,7 +1,7 @@
 import uuid
 
-from src.database import get_sessionmaker
-from src.models import User
+from app.core.db import get_sessionmaker
+from app.models import User
 
 
 def test_updated_at_changes_on_update():

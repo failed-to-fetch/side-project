@@ -13,7 +13,7 @@ from sqlalchemy import (
 )
 from sqlalchemy.orm import Mapped, mapped_column
 
-from src.database import Base
+from app.core.db import Base
 
 
 class User(Base):

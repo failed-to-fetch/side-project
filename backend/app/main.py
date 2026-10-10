@@ -6,15 +6,15 @@ from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from src.auth import get_current_user
-from src.config import get_settings
-from src.database import get_db, get_engine
-from src.models import User
-from src.redis_client import get_redis
-from src.routes_github_auth import router as github_auth_router
-from src.schemas import LoginRequest, UserCreate, UserRead
-from src.security import DUMMY_HASH, hash_password, verify_password
-from src.sessions import (
+from app.auth import get_current_user
+from app.core.config import get_settings
+from app.core.db import get_db, get_engine
+from app.core.redis_client import get_redis
+from app.core.security import DUMMY_HASH, hash_password, verify_password
+from app.models import User
+from app.routes_github_auth import router as github_auth_router
+from app.schemas import LoginRequest, UserCreate, UserRead
+from app.sessions import (
     COOKIE_NAME,
     create_session,
     delete_session,

@@ -2,10 +2,10 @@ import redis
 from fastapi import Cookie, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
-from src.database import get_db
-from src.models import User
-from src.redis_client import get_redis
-from src.sessions import COOKIE_NAME, get_session_user_id
+from app.core.db import get_db
+from app.core.redis_client import get_redis
+from app.models import User
+from app.sessions import COOKIE_NAME, get_session_user_id
 
 
 def get_current_user(

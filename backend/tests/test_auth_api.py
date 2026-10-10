@@ -1,5 +1,5 @@
 PASSWORD = "correct-horse-battery"
-from src.models import User
+from app.models import User
 
 def _signup(client, email="alice@example.com"):
     r = client.post("/users", json={"email": email, "password": PASSWORD})

@@ -9,14 +9,14 @@ from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from src import github_oauth
-from src.auth import get_current_user
-from src.config import get_settings
-from src.crypto import encrypt
-from src.database import get_db
-from src.models import OAuthIdentity, User
-from src.redis_client import get_redis
-from src.sessions import create_session, set_session_cookie
+from app import github_oauth
+from app.auth import get_current_user
+from app.core.config import get_settings
+from app.core.crypto import encrypt
+from app.core.db import get_db
+from app.core.redis_client import get_redis
+from app.models import OAuthIdentity, User
+from app.sessions import create_session, set_session_cookie
 
 router = APIRouter(prefix="/auth/github", tags=["auth"])
 

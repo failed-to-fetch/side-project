@@ -103,7 +103,7 @@ docker compose run --rm backend alembic history    # all revisions
 
 ### Create a new migration
 
-1. Change the models in `backend/src/models.py`. Every model must be imported there so Alembic can see it.
+1. Change the models in `backend/app/models.py`. Every model must be imported there so Alembic can see it.
 2. Generate the migration:
 
 ```sh
