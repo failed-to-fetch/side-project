@@ -335,7 +335,7 @@ Unchanged images come from Docker's build cache, so a one-line backend change re
 1. **On the server:** set up the project as in [Running on a server or VM](#running-on-a-server-or-vm). That checkout must be able to `git fetch` without a password: for a private repo, add a read-only [deploy key](https://docs.github.com/en/authentication/connecting-to-github-with-ssh/managing-deploy-keys) on GitHub. Don't edit tracked files there; `deploy.sh` refuses to deploy over hand edits.
 2. **An SSH key for Jenkins:** run `ssh-keygen -t ed25519 -f jenkins-deploy -N ""` anywhere. Append `jenkins-deploy.pub` to `~/.ssh/authorized_keys` on the server, for a user in the `docker` group.
 3. **In Jenkins:**
-   - Install the **Pipeline**, **Git**, **GitHub Branch Source** and **SSH Agent** plugins.
+   - Install the **Pipeline**, **Git** and **GitHub Branch Source** plugins (plus **Credentials Binding**, which is part of the standard install).
    - Add two credentials:
      - *SSH Username with private key*, ID `side-project-deploy-ssh`, with the server's username and the contents of `jenkins-deploy`.
      - *Username with password*, ID `github-pat`, with your GitHub username and a fine-grained token that has read-only Contents and Metadata on this repo.

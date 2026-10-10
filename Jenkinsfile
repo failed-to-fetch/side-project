@@ -68,11 +68,20 @@ pipeline {
                     currentBuild.description = "Deploy ${ref}"
                     withEnv(["TARGET_REF=${ref}", "TARGET_DIR=${dir}"]) {
                         if (env.DEPLOY_HOST) {
-                            // SSH private key stored in Jenkins credentials with this ID.
-                            sshagent(credentials: ['side-project-deploy-ssh']) {
+                            // SSH private key stored in Jenkins credentials with this ID
+                            // (kind: SSH Username with private key). withCredentials
+                            // writes it to a temporary file for this block only.
+                            withCredentials([sshUserPrivateKey(
+                                credentialsId: 'side-project-deploy-ssh',
+                                keyFileVariable: 'SSH_KEY'
+                            )]) {
+                                // deploy.sh updates its own checkout, but it has to
+                                // exist there first: a checkout from before it was
+                                // added needs one manual update.
                                 sh '''
-                                    ssh -o StrictHostKeyChecking=accept-new "$DEPLOY_HOST" \
-                                        "cd '$TARGET_DIR' && scripts/deploy.sh '$TARGET_REF'"
+                                    ssh -i "$SSH_KEY" -o IdentitiesOnly=yes -o BatchMode=yes \
+                                        -o StrictHostKeyChecking=accept-new "$DEPLOY_HOST" \
+                                        "cd '$TARGET_DIR' && if [ ! -x scripts/deploy.sh ]; then echo 'scripts/deploy.sh is missing in $TARGET_DIR on the server. Update that checkout once by hand: git fetch origin && git checkout <branch> && git pull' >&2; exit 1; fi && scripts/deploy.sh '$TARGET_REF'"
                                 '''
                             }
                         } else {
@@ -86,7 +95,8 @@ pipeline {
 
     post {
         failure {
-            echo "Deploy of ${env.GIT_COMMIT} failed. On the server: docker compose ps -a, then docker compose logs <service>."
+            echo "Deploy failed. The reason is in the Console Output, just after the 'Deploying ...' line. " +
+                 "If the deploy itself ran, on the server: docker compose ps -a, then docker compose logs <service>."
         }
     }
 }
