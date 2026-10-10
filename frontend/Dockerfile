@@ -1,15 +1,15 @@
 # Build stage
-FROM node:26-alpine AS build
+FROM node:24-alpine AS build
 WORKDIR /app
 
 RUN npm install -g pnpm@12.10.1
 
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
-
-# lock the pnpm-lock.yml so that all dependencies are installed exactly as specified in the lockfile
 RUN pnpm install --frozen-lockfile
 
-# copys /frontend
+ARG VITE_AUTH_URL=http://localhost:3001
+ENV VITE_AUTH_URL=$VITE_AUTH_URL
+
 COPY . .
 RUN pnpm build
 

@@ -48,18 +48,19 @@ services:
       redis:
         condition: service_healthy
       auth:
-        condition: service_started
+        condition: service_healthy
     networks:
       - app-network
 
   frontend:
     build:
       context: ./frontend
+      args:
+        # Baked into the bundle at build time; rebuild the image after changing it.
+        VITE_AUTH_URL: http://localhost:3001
     container_name: frontend
     ports:
       - "3000:80"
-    environment:
-      BACKEND_URL: http://localhost:8000
     depends_on:
       - backend
     networks:
@@ -104,18 +105,17 @@ services:
   auth-migrate:
     build:
       context: ./services/auth
-    environment:
+      target: migrate
+    environment: &auth-env
       DATABASE_URL: *database-url
       BETTER_AUTH_URL: http://localhost:3001
       BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET}
-      FRONTEND_URL: http://localhost:3000
       GITHUB_LOGIN_CLIENT_ID: ${GITHUB_LOGIN_CLIENT_ID}
       GITHUB_LOGIN_CLIENT_SECRET: ${GITHUB_LOGIN_CLIENT_SECRET}
       GITLAB_LOGIN_CLIENT_ID: ${GITLAB_LOGIN_CLIENT_ID}
       GITLAB_LOGIN_CLIENT_SECRET: ${GITLAB_LOGIN_CLIENT_SECRET}
       BITBUCKET_LOGIN_CLIENT_ID: ${BITBUCKET_LOGIN_CLIENT_ID}
       BITBUCKET_LOGIN_CLIENT_SECRET: ${BITBUCKET_LOGIN_CLIENT_SECRET}
-    command: ["pnpm", "run", "auth:migrate:docker"]
     restart: "no"
     depends_on:
       postgres:
@@ -126,21 +126,19 @@ services:
   auth:
     build:
       context: ./services/auth
+      target: prod
     container_name: auth
     ports:
       - "3001:3001"
     environment:
+      <<: *auth-env
       PORT: 3001
-      DATABASE_URL: *database-url
-      BETTER_AUTH_URL: http://localhost:3001
-      BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET}
-      FRONTEND_URL: http://localhost:3000
-      GITHUB_LOGIN_CLIENT_ID: ${GITHUB_LOGIN_CLIENT_ID}
-      GITHUB_LOGIN_CLIENT_SECRET: ${GITHUB_LOGIN_CLIENT_SECRET}
-      GITLAB_LOGIN_CLIENT_ID: ${GITLAB_LOGIN_CLIENT_ID}
-      GITLAB_LOGIN_CLIENT_SECRET: ${GITLAB_LOGIN_CLIENT_SECRET}
-      BITBUCKET_LOGIN_CLIENT_ID: ${BITBUCKET_LOGIN_CLIENT_ID}
-      BITBUCKET_LOGIN_CLIENT_SECRET: ${BITBUCKET_LOGIN_CLIENT_SECRET}
+    healthcheck:
+      # 127.0.0.1, not localhost: Alpine resolves localhost to IPv6 first, and the server listens on IPv4.
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:3001/api/auth/ok"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
     depends_on:
       postgres:
         condition: service_healthy
