@@ -339,7 +339,7 @@ Unchanged images come from Docker's build cache, so a one-line backend change re
    - Add two credentials:
      - *SSH Username with private key*, ID `side-project-deploy-ssh`, with the server's username and the contents of `jenkins-deploy`.
      - *Username with password*, ID `github-pat`, with your GitHub username and a fine-grained token that has read-only Contents and Metadata on this repo.
-   - Under Manage Jenkins → System, set **Jenkins URL** to the address GitHub will use. Under Global properties, set environment variables `DEPLOY_HOST` (e.g. `ubuntu@79.72.88.229`) and `DEPLOY_DIR` (e.g. `/home/ubuntu/side-project`).
+   - Under Manage Jenkins → System, set **Jenkins URL** to the address GitHub will use. Under Global properties, set environment variables `DEPLOY_HOST` (e.g. `ubuntu@79.72.88.229`) and, if the checkout isn't `~/side-project`, `DEPLOY_DIR` (relative to that user's home, or absolute). Don't leave `DEPLOY_HOST` empty: Jenkins would then try to deploy on its own machine.
    - Create a **Multibranch Pipeline** job with a **GitHub** branch source for this repo, credentials `github-pat`, and a "Filter by name" behaviour that includes only `Main`.
 4. **Trigger on push:** in the GitHub repo, Settings → Webhooks → Add webhook, with payload URL `https://<your-jenkins>/github-webhook/` (keep the trailing slash), content type `application/json`, and just the push event. If GitHub can't reach your Jenkins, set the job's "Scan Multibranch Pipeline Triggers" to run every 5 minutes instead.
 5. **Recommended:** protect `Main` (Settings → Branches) so the `backend` CI check must pass before merging. Then broken code can't reach the deploy.
@@ -351,7 +351,7 @@ Unchanged images come from Docker's build cache, so a one-line backend change re
     - "host.docker.internal:host-gateway"
   ```
   Then set `DEPLOY_HOST=<user>@host.docker.internal`. The Jenkins image needs an SSH client. Check with `docker exec <jenkins-container> which ssh`, and if it's missing, add `openssh-client` in the Jenkins Dockerfile.
-- **Jenkins installed directly on the VM:** set `DEPLOY_HOST=<user>@localhost`. Or leave `DEPLOY_HOST` empty to run `deploy.sh` without SSH, in which case the `jenkins` user must be in the `docker` group and own the checkout in `DEPLOY_DIR`.
+- **Jenkins installed directly on the VM:** set `DEPLOY_HOST=<user>@localhost`. Or leave `DEPLOY_HOST` empty to run `deploy.sh` without SSH, in which case the `jenkins` user must be in the `docker` group and own the checkout, and `DEPLOY_DIR` must be an absolute path.
 
 **A plain Pipeline job also works** instead of a Multibranch one. Choose *Pipeline script from SCM*, Git, this repo, branch `*/Main`, script path `Jenkinsfile`, and under Triggers tick *GitHub hook trigger for GITScm polling*. The webhook from step 4 triggers it.
 
